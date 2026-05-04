@@ -7,7 +7,7 @@ from pathlib import Path
 
 from src.agent import classify, summarise
 from src.fetcher import fetch
-from src.models import ContentType
+from src.models import ContentType, note_to_slug
 from src.renderer import render
 from src.router import route
 from src.vault import make_filename, write
@@ -46,7 +46,7 @@ async def run_pipeline(url: str, dry_run: bool = False) -> Path | None:
         print(markdown)
         return None
 
-    filename = make_filename(title)
+    filename = make_filename(note_to_slug(note))
     path = write(filename, markdown)
     print(f"Written to {path}")
     return path

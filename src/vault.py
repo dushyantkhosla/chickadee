@@ -4,17 +4,14 @@ import logging
 from datetime import date
 from pathlib import Path
 
-from slugify import slugify
-
 from src.config import settings
 from src.exceptions import VaultWriteError
 
 logger = logging.getLogger(__name__)
 
 
-def make_filename(title: str) -> str:
-    """Generate `{YYYY-MM-DD}_{slugified-title}.md`."""
-    slug = slugify(title)
+def make_filename(slug: str) -> str:
+    """Generate `{YYYY-MM-DD}_{slug}.md` where slug is pre-slugified."""
     return f"{date.today().isoformat()}_{slug}.md"
 
 

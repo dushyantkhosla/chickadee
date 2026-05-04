@@ -27,4 +27,4 @@ def test_make_filename():
     from datetime import date
     with patch("src.vault.date") as mock_date:
         mock_date.today.return_value = date(2026, 5, 4)
-        assert make_filename("Hello World!") == "2026-05-04_hello-world.md"
+        assert make_filename("hello-world") == "2026-05-04_hello-world.md"

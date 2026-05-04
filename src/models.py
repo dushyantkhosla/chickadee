@@ -273,6 +273,14 @@ class FieldNote(BaseModel):
 AnyNote = TalkNote | ArticleNote | PaperNote | EssayNote | RepoNote | FieldNote
 
 
+def note_to_slug(note: AnyNote, max_chars: int = 50) -> str:
+    """Generate a short URL-safe slug from a note's title/name."""
+    from slugify import slugify
+
+    raw = getattr(note, "title", None) or getattr(note, "name", "untitled")
+    return slugify(raw)[:max_chars].rstrip("-")
+
+
 # ── URL routing (used by the agent router, not Pydantic) ─────────────────────
 #
 # Two-tier routing strategy:
