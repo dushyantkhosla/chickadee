@@ -7,7 +7,7 @@ from pathlib import Path
 
 from src.agent import classify, summarise
 from src.fetcher import fetch
-from src.models import ContentType, note_to_slug
+from src.models import AnyNote, ContentType, note_to_slug
 from src.renderer import render
 from src.router import route
 from src.vault import make_filename, write
@@ -22,8 +22,11 @@ async def resolve_content_type(url: str, text: str = "") -> ContentType:
     return await classify(text or f"Classify content from: {url}")
 
 
-async def run_pipeline(url: str, dry_run: bool = False) -> Path | None:
-    """Full pipeline: fetch → route/classify → index → summarise → render → write."""
+async def run_pipeline(url: str, dry_run: bool = False) -> tuple[Path | None, AnyNote]:
+    """Full pipeline: fetch → route/classify → index → summarise → render → write.
+
+    Returns (path, note). path is None when dry_run=True.
+    """
     print(f"Fetching {url} ...")
     text = await fetch(url)
     print(f"Fetched {len(text.split())} words")
@@ -44,12 +47,12 @@ async def run_pipeline(url: str, dry_run: bool = False) -> Path | None:
     if dry_run:
         print("\n--- DRY RUN ---\n")
         print(markdown)
-        return None
+        return None, note
 
     filename = make_filename(note_to_slug(note))
     path = write(filename, markdown)
     print(f"Written to {path}")
-    return path
+    return path, note
 
 
 def main() -> None:
@@ -59,7 +62,7 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        asyncio.run(run_pipeline(args.url, dry_run=args.dry_run))
+        path, note = asyncio.run(run_pipeline(args.url, dry_run=args.dry_run))
     except Exception as exc:
         print(f"Pipeline failed: {exc}", file=sys.stderr)
         sys.exit(1)

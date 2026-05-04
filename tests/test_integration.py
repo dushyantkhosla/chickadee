@@ -38,7 +38,7 @@ async def test_pipeline_full_run_writes_file():
                         "src.main.summarise", new_callable=AsyncMock
                     ) as mock_summarise:
                         mock_summarise.return_value = _article_fixture()
-                        path = await run_pipeline("https://example.com/article")
+                        path, note = await run_pipeline("https://example.com/article")
                         assert path is not None
                         assert path.exists()
                         content = path.read_text()
@@ -57,7 +57,7 @@ async def test_pipeline_dry_run_does_not_write():
                         "src.main.summarise", new_callable=AsyncMock
                     ) as mock_summarise:
                         mock_summarise.return_value = _article_fixture()
-                        path = await run_pipeline(
+                        path, note = await run_pipeline(
                             "https://example.com/article", dry_run=True
                         )
                         assert path is None
