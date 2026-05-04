@@ -1,9 +1,10 @@
-"""Chickadee Telegram bot — polling mode, single URL → note flow."""
+"""Chickadee Telegram bot — polling mode, URL queue → note flow."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from collections import deque
 from typing import TYPE_CHECKING
 
 from telegram import MessageEntity, Update
@@ -57,13 +58,14 @@ HELP_TEXT = (
 
 
 class ChickadeeBot:
-    """Minimal Telegram bot: receives URL, runs pipeline, replies with confirmation."""
+    """Telegram bot: queues URLs per chat, processes sequentially."""
 
     def __init__(self, token: str, allowed_chat_ids: set[int | str]) -> None:
         if "*" in allowed_chat_ids:
             allowed_chat_ids = {"*"}
         self._allowed = allowed_chat_ids
-        self._active: set[int] = set()
+        self._queues: dict[int, deque[str]] = {}
+        self._processing: set[int] = set()
         self._typing_tasks: dict[int, asyncio.Task] = {}
         self._app = Application.builder().token(token).build()
 
@@ -113,11 +115,6 @@ class ChickadeeBot:
         chat_id = update.effective_chat.id
         if not self._is_allowed(chat_id):
             return
-        if chat_id in self._active:
-            await update.message.reply_text(
-                "⏳ Still processing your previous request, please wait."
-            )
-            return
 
         # Extract the first URL from the message
         entities = update.message.parse_entities([MessageEntity.URL])
@@ -125,23 +122,57 @@ class ChickadeeBot:
             return
         url = next(iter(entities.values()))
 
-        self._active.add(chat_id)
+        # Enqueue and acknowledge
+        if chat_id not in self._queues:
+            self._queues[chat_id] = deque()
+        self._queues[chat_id].append(url)
+
+        queue_len = len(self._queues[chat_id])
+        if queue_len > 1:
+            await update.message.reply_text(
+                f"🔗 Received. You're #{queue_len} in queue ... 📚"
+            )
+        else:
+            await update.message.reply_text("🔗 Received. Filing it away now ... 📚")
+
+        # Kick off processing if not already running for this chat
+        if chat_id not in self._processing:
+            asyncio.ensure_future(self._process_next(chat_id))
+
+    async def _process_next(self, chat_id: int) -> None:
+        """Process one URL from the chat's queue, then recurse if more remain."""
+        queue = self._queues.get(chat_id)
+        if not queue or not queue:
+            # Queue drained — clean up
+            self._queues.pop(chat_id, None)
+            return
+
+        self._processing.add(chat_id)
+        url = queue.popleft()
         self._start_typing(chat_id)
 
         try:
             path, note = await run_pipeline(url)
             filename = path.name if path else "unknown"
             msg = format_confirmation(note, filename)
-            await update.message.reply_text(msg, parse_mode="HTML")
+            # We need the update object to reply; use bot.send_message instead
+            await self._app.bot.send_message(
+                chat_id=chat_id,
+                text=msg,
+                parse_mode="HTML",
+            )
         except Exception as exc:
             error_type = type(exc).__name__
-            await update.message.reply_text(
-                format_error(error_type, str(exc), url),
+            await self._app.bot.send_message(
+                chat_id=chat_id,
+                text=format_error(error_type, str(exc), url),
                 parse_mode="HTML",
             )
         finally:
             self._stop_typing(chat_id)
-            self._active.discard(chat_id)
+            self._processing.discard(chat_id)
+            # Process next in queue
+            asyncio.ensure_future(self._process_next(chat_id))
 
     def _start_typing(self, chat_id: int) -> None:
         self._stop_typing(chat_id)
