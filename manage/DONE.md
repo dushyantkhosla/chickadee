@@ -10,3 +10,4 @@
 - Vault index — cached .md title scanner with Inbox exclusion
 - Integration pipeline — fetch → route → classify → index → summarise → render → write
 - CLI — `--dry-run` flag, error handling at every stage
+- Telegram bot — polling mode, URL → note flow with confirmation messages
