@@ -10,6 +10,24 @@ One human action (send link). Everything else is automated.
 
 ---
 
+## Ground rules
+
+### Start of every session
+
+1. Read `manage/TODO.md` and `plans/`
+2. Ask user: Press E for Execution mode, P for Plan Mode
+3. If E -> *"which plan to execute?"* then use `executing-plans` and `test-driven-development` skill to implement plan 
+4. If P -> *"Let's brainstorm ... which to-do?"*, then load the `brainstorming` skill and show a list of to-dos
+5. After brainstorming loop done → write plan in /plans → Please start a /new session
+
+### End of every session
+
+0. Ask user if wants to remove done plan from `plans/`
+1. Move completed items from `manage/TODO.md` to `manage/DONE.md`
+2. Present a caveman summary of work done this session and write it to `manage/LOGS.md`
+
+---
+
 ## Project layout
 
 ```
@@ -232,18 +250,3 @@ OBSIDIAN_BASE_URL=            # Option A: e.g. http://localhost:27123
 - `models.py` is append-only for new note types — never modify existing field names once the vault has notes using them (breaks frontmatter parsing)
 - Keep `URL_ROUTING` updated as new domains are added
 
----
-
-## Session workflow
-
-### Start of every session
-
-1. Read `manage/TODO.md`
-2. Ask user: *"Should we use the brainstorm skill and write a plan in `plans/` for this?"*
-3. If yes: load `brainstorming` skill → write plan → `executing-plans` + `test-driven-development`
-4. If no: proceed directly
-
-### End of every session
-
-1. Move completed items from `manage/TODO.md` to `manage/DONE.md`
-2. Present a caveman summary of work done this session
