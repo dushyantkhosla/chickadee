@@ -9,6 +9,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from datetime import date
 
 from src.config import settings
+from src.lmstudio_utils import ensure_model_loaded
 from src.models import (
     AnyNote,
     ArticleNote,
@@ -21,6 +22,13 @@ from src.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_lm_studio() -> None:
+    """Ensure LM Studio server is running and the configured model is loaded."""
+    model = ensure_model_loaded(settings.LM_STUDIO_MODEL)
+    logger.info("LM Studio ready — model: %s", model)
+
 
 _CLASSIFIER_SYSTEM_PROMPT = """
 You are a content classifier. Given an article's text, decide which of these
@@ -55,6 +63,7 @@ async def classify(text: str) -> ContentType:
 
     Falls back to ``ContentType.article`` if the LLM call fails.
     """
+    ensure_lm_studio()
     try:
         result = await _classifier_agent.run(text[:4000])  # truncate to keep it fast
         return result.output
@@ -112,6 +121,7 @@ async def summarise(
     text: str, content_type: ContentType, vault_titles: list[str], url: str
 ) -> AnyNote:
     """Summarise article text into a typed *Note using a local LLM."""
+    ensure_lm_studio()
     note_type = _CONTENT_TYPE_TO_MODEL[content_type]
     agent = Agent(
         model=_summariser_model,
