@@ -231,3 +231,19 @@ OBSIDIAN_BASE_URL=            # Option A: e.g. http://localhost:27123
 - No placeholder text in `Reflection` fields — `None` is correct when uncertain
 - `models.py` is append-only for new note types — never modify existing field names once the vault has notes using them (breaks frontmatter parsing)
 - Keep `URL_ROUTING` updated as new domains are added
+
+---
+
+## Session workflow
+
+### Start of every session
+
+1. Read `manage/TODO.md`
+2. Ask user: *"Should we use the brainstorm skill and write a plan in `plans/` for this?"*
+3. If yes: load `brainstorming` skill → write plan → `executing-plans` + `test-driven-development`
+4. If no: proceed directly
+
+### End of every session
+
+1. Move completed items from `manage/TODO.md` to `manage/DONE.md`
+2. Present a caveman summary of work done this session
