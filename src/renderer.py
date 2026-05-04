@@ -174,6 +174,8 @@ def _render_open_questions(questions: list[str]) -> list[str]:
 
 
 def _render_reflection(reflection) -> list[str]:
+    if reflection is None:
+        return []
     lines = ["", "## Reflection", ""]
     if reflection.my_take:
         lines.append(f"**My take:** {reflection.my_take}")

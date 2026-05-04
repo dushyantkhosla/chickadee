@@ -104,7 +104,7 @@ Rules:
 - meta.source_type must be "{content_type.value}"
 - meta.ingested_on must be "{date.today().isoformat()}"
 - meta.tags: kebab-case topic tags
-- Reflection fields (my_take, so_what, now_what): leave as null/None unless there is genuine insight. Do not pad with generic text.
+- Reflection: always include a reflection object with individual fields set to null unless there is genuine insight. Do not set the entire reflection to null. Do not pad with generic text.
 {vault_section}""".strip()
 
 

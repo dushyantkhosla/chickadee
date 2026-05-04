@@ -121,7 +121,7 @@ class TalkNote(BaseModel):
         default_factory=list,
         description="Questions this raises that are not answered"
     )
-    reflection: Reflection
+    reflection: Optional[Reflection] = None
 
 
 class ArticleNote(BaseModel):
@@ -145,7 +145,7 @@ class ArticleNote(BaseModel):
         default_factory=list,
         description="Questions this raises that are not answered"
     )
-    reflection: Reflection
+    reflection: Optional[Reflection] = None
 
 
 class PaperNote(BaseModel):
@@ -174,7 +174,7 @@ class PaperNote(BaseModel):
         default_factory=list,
         description="Questions this raises that are not answered"
     )
-    reflection:  Reflection
+    reflection: Optional[Reflection] = None
 
 
 class EssayNote(BaseModel):
@@ -199,7 +199,7 @@ class EssayNote(BaseModel):
         default_factory=list,
         description="Questions this raises that are not answered"
     )
-    reflection: Reflection
+    reflection: Optional[Reflection] = None
 
 
 class RepoNote(BaseModel):
@@ -222,7 +222,7 @@ class RepoNote(BaseModel):
         default_factory=list,
         description="Questions this raises that are not answered"
     )
-    reflection:    Reflection
+    reflection: Optional[Reflection] = None
 
 
 class FieldNote(BaseModel):
@@ -265,7 +265,7 @@ class FieldNote(BaseModel):
         default_factory=list,
         description="Questions this raises that are not answered"
     )
-    reflection:    Reflection
+    reflection: Optional[Reflection] = None
 
 
 # ── Union type for the router ─────────────────────────────────────────────────
