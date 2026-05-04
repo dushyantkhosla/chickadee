@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_WEBHOOK_SECRET: str = ""
+    BOT_ALLOWED_CHAT_IDS: str = "*"
 
     LM_STUDIO_BASE_URL: str = "http://localhost:1234/v1"
     LM_STUDIO_MODEL: str = "local-model"
