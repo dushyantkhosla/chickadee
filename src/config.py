@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     LM_STUDIO_BASE_URL: str = "http://localhost:1234/v1"
     LM_STUDIO_MODEL: str = "local-model"
+    LM_STUDIO_API_KEY: str = ""
 
     # Vault mode — choose one
     OBSIDIAN_VAULT_PATH: str = "/tmp/chickadee-vault"
