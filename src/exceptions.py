@@ -8,3 +8,7 @@ class ParseError(Exception):
 
 class VaultWriteError(Exception):
     """Raised when a note cannot be written to the vault."""
+
+
+class LMStudioError(Exception):
+    """Raised when LM Studio connection or model loading fails."""
