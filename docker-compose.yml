@@ -1,0 +1,7 @@
+services:
+  chickadee:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /home/dushyant/code/chickadee/vault:/app/vault
