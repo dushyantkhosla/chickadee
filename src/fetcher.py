@@ -1,28 +1,30 @@
 """Fetch and extract article text from URLs."""
 
+import asyncio
 import logging
-from urllib.parse import urlparse
+from typing import Optional
 
 import httpx
 import trafilatura
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
 from src.exceptions import FetchError, ParseError
+from src.models import YouTubeMetadata
 
 logger = logging.getLogger(__name__)
 
 
 def _extract_youtube_video_id(url: str) -> str | None:
+    """Check if URL is a YouTube video. Used for routing, not fetching."""
+    from urllib.parse import parse_qs, urlparse
     parsed = urlparse(url)
     host = parsed.netloc.lower().lstrip("www.")
-    if host == "youtube.com":
-        from urllib.parse import parse_qs
-        query = parse_qs(parsed.query)
-        if "v" in query:
-            return query["v"][0]
-    if host == "youtu.be":
-        return parsed.path.lstrip("/").split("/")[0]
+    if host in ("youtube.com", "youtu.be"):
+        if host == "youtube.com":
+            query = parse_qs(parsed.query)
+            if "v" in query:
+                return query["v"][0]
+        else:
+            return parsed.path.lstrip("/").split("/")[0]
     return None
 
 
@@ -45,32 +47,26 @@ async def _fetch_html(url: str) -> str:
         return text.strip()
 
 
-def _fetch_transcript(video_id: str) -> str:
-    try:
-        transcript = YouTubeTranscriptApi().fetch(video_id)
-    except (TranscriptsDisabled, NoTranscriptFound) as exc:
-        raise ParseError(f"No transcript available for {video_id}") from exc
-    except Exception as exc:
-        raise FetchError(f"Transcript fetch failed for {video_id}: {exc}") from exc
-
-    text = " ".join(seg.text for seg in transcript)
-    if not text.strip():
-        raise ParseError(f"Empty transcript for {video_id}")
-    return text.strip()
-
-
-async def fetch(url: str) -> str:
+async def fetch(url: str) -> tuple[str, Optional[YouTubeMetadata]]:
     """Fetch plain text from *url*.
 
-    YouTube URLs are resolved via transcript API; everything else via
-    httpx + trafilatura.
+    YouTube URLs are resolved via yt-dlp audio download + transcription;
+    everything else via httpx + trafilatura.
+
+    Returns (text, metadata). metadata is only set for YouTube URLs.
     """
+    from src.transcriber import fetch_youtube_transcript
+
     video_id = _extract_youtube_video_id(url)
     if video_id:
-        text = _fetch_transcript(video_id)
+        transcript, metadata = await asyncio.to_thread(
+            fetch_youtube_transcript, url
+        )
+        word_count = len(transcript.split())
+        logger.info("Fetched %s — %d words (via audio transcription)", url, word_count)
+        return transcript, metadata
     else:
         text = await _fetch_html(url)
-
-    word_count = len(text.split())
-    logger.info("Fetched %s — %d words", url, word_count)
-    return text
+        word_count = len(text.split())
+        logger.info("Fetched %s — %d words", url, word_count)
+        return text, None

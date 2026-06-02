@@ -29,6 +29,8 @@ def _render_frontmatter(meta) -> str:
         "source_type": meta.source_type.value,
         "ingested_on": meta.ingested_on.isoformat(),
     }
+    if meta.upload_date is not None:
+        data["upload_date"] = meta.upload_date.isoformat()
     return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
 
 
@@ -50,8 +52,7 @@ def _render_body(note: AnyNote) -> str:
 
 def _author_line(note: AnyNote) -> str:
     if isinstance(note, TalkNote):
-        venue = f" — {note.venue}" if note.venue else ""
-        return f"_{note.speaker}{venue}_"
+        return f"_{note.speaker}_" if note.speaker else ""
     if isinstance(note, (ArticleNote, EssayNote, FieldNote)):
         return f"_{note.author}_" if note.author else ""
     if isinstance(note, PaperNote):

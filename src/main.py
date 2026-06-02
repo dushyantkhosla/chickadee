@@ -3,11 +3,12 @@
 import argparse
 import asyncio
 import sys
+from datetime import date
 from pathlib import Path
 
-from src.agent import classify, summarise
+from src.agent import TalkMetadata, classify, summarise
 from src.fetcher import fetch
-from src.models import AnyNote, ContentType, note_to_slug
+from src.models import AnyNote, ContentType, YouTubeMetadata, note_to_slug
 from src.renderer import render
 from src.router import route
 from src.vault import make_filename, write
@@ -22,13 +23,23 @@ async def resolve_content_type(url: str, text: str = "") -> ContentType:
     return await classify(text or f"Classify content from: {url}")
 
 
+def _parse_upload_date(raw: str | None) -> date | None:
+    """Parse yt-dlp YYYYMMDD format to date object."""
+    if not raw or len(raw) != 8:
+        return None
+    try:
+        return date(int(raw[:4]), int(raw[4:6]), int(raw[6:8]))
+    except ValueError:
+        return None
+
+
 async def run_pipeline(url: str, dry_run: bool = False) -> tuple[Path | None, AnyNote]:
     """Full pipeline: fetch → route/classify → index → summarise → render → write.
 
     Returns (path, note). path is None when dry_run=True.
     """
     print(f"Fetching {url} ...")
-    text = await fetch(url)
+    text, yt_metadata = await fetch(url)
     print(f"Fetched {len(text.split())} words")
 
     content_type = await resolve_content_type(url, text)
@@ -37,7 +48,24 @@ async def run_pipeline(url: str, dry_run: bool = False) -> tuple[Path | None, An
     vault_titles = get_titles()
     print(f"Vault index: {len(vault_titles)} titles")
 
-    note = await summarise(text, content_type, vault_titles, url)
+    # Build talk metadata from yt-dlp if available
+    talk_deps = None
+    if yt_metadata is not None and content_type == ContentType.talk:
+        talk_deps = TalkMetadata(
+            title=yt_metadata.title,
+            speaker=yt_metadata.channel,
+            categories=yt_metadata.categories,
+            upload_date=_parse_upload_date(yt_metadata.upload_date),
+        )
+
+    note = await summarise(text, content_type, vault_titles, url, deps=talk_deps)
+
+    # Inject upload_date into metadata if available
+    if yt_metadata is not None:
+        parsed_date = _parse_upload_date(yt_metadata.upload_date)
+        if parsed_date:
+            note.meta.upload_date = parsed_date
+
     title = getattr(note, "title", getattr(note, "name", "untitled"))
     print(f"Summarised: {title}")
 

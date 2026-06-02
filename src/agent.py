@@ -1,12 +1,13 @@
 """PydanticAI agents for classification and summarisation."""
 
 import logging
+from dataclasses import dataclass
+from datetime import date
+from typing import Optional
 
-from pydantic_ai import Agent, ModelSettings
+from pydantic_ai import Agent, ModelSettings, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
-
-from datetime import date
 
 from src.config import settings
 from src.lmstudio_utils import ensure_model_loaded
@@ -74,6 +75,15 @@ async def classify(text: str) -> ContentType:
 
 # ── Summariser ──────────────────────────────────────────────────────────────
 
+@dataclass
+class TalkMetadata:
+    """Pre-populated metadata from yt-dlp. Passed as deps to the talk summariser."""
+    title: str
+    speaker: str
+    categories: list[str]
+    upload_date: Optional[date]
+
+
 _CONTENT_TYPE_TO_MODEL = {
     ContentType.talk: TalkNote,
     ContentType.article: ArticleNote,
@@ -117,17 +127,69 @@ Rules:
 {vault_section}""".strip()
 
 
+def _build_talk_prompt(vault_titles: list[str], url: str) -> str:
+    """Simplified prompt for talk summarisation when metadata is pre-populated."""
+    vault_section = ""
+    if vault_titles:
+        titles_text = "\n".join(f"- {t}" for t in vault_titles)
+        vault_section = (
+            f"Existing vault notes (exact titles):\n{titles_text}\n\n"
+            "Populate builds_on, see_also, and contradicts using ONLY these exact titles. "
+            "Leave empty if none match. Do not invent titles.\n"
+        )
+    return f"""You are a research assistant. Summarise the provided talk transcript into a structured talk note.
+
+The title, speaker, and categories are provided via context — do NOT produce title or speaker fields.
+Focus on: thesis, arguments, key_quotes, open_questions, and reflection.
+
+Rules:
+- meta.source_url must be "{url}"
+- meta.source_type must be "talk"
+- meta.ingested_on must be "{date.today().isoformat()}"
+- meta.tags: kebab-case topic tags (seeded from the provided categories, refine as needed)
+- Reflection: always include a reflection object with individual fields set to null unless there is genuine insight. Do not set the entire reflection to null. Do not pad with generic text.
+{vault_section}""".strip()
+
+
 async def summarise(
-    text: str, content_type: ContentType, vault_titles: list[str], url: str
+    text: str,
+    content_type: ContentType,
+    vault_titles: list[str],
+    url: str,
+    deps: TalkMetadata | None = None,
 ) -> AnyNote:
     """Summarise article text into a typed *Note using a local LLM."""
     ensure_lm_studio()
     note_type = _CONTENT_TYPE_TO_MODEL[content_type]
-    agent = Agent(
-        model=_summariser_model,
-        output_type=note_type,
-        model_settings=ModelSettings(temperature=0.2),
-        instructions=_build_summariser_prompt(content_type, vault_titles, url),
-    )
-    result = await agent.run(text[:8000])
+
+    if content_type == ContentType.talk and deps is not None:
+        agent = Agent(
+            model=_summariser_model,
+            deps_type=TalkMetadata,
+            output_type=note_type,
+            model_settings=ModelSettings(temperature=0.2),
+            instructions=_build_talk_prompt(vault_titles, url),
+        )
+
+        @agent.instructions
+        def inject_metadata(ctx: RunContext[TalkMetadata]) -> str:
+            d = ctx.deps
+            cats = ", ".join(d.categories) if d.categories else "none"
+            return (
+                f"Title: {d.title}\n"
+                f"Speaker: {d.speaker}\n"
+                f"Categories: {cats}\n"
+                f"Upload date: {d.upload_date.isoformat() if d.upload_date else 'unknown'}"
+            )
+
+        result = await agent.run(text[:8000], deps=deps)
+    else:
+        agent = Agent(
+            model=_summariser_model,
+            output_type=note_type,
+            model_settings=ModelSettings(temperature=0.2),
+            instructions=_build_summariser_prompt(content_type, vault_titles, url),
+        )
+        result = await agent.run(text[:8000])
+
     return result.output

@@ -5,6 +5,7 @@ import pytest
 
 from src.exceptions import FetchError, ParseError
 from src.fetcher import fetch
+from src.models import YouTubeMetadata
 
 
 @pytest.mark.asyncio
@@ -22,8 +23,9 @@ async def test_fetch_html_success():
         MockClient.return_value = client_instance
 
         with patch("src.fetcher.trafilatura.extract", return_value="Hello world"):
-            result = await fetch("https://example.com/article")
-            assert result == "Hello world"
+            text, metadata = await fetch("https://example.com/article")
+            assert text == "Hello world"
+            assert metadata is None
 
 
 @pytest.mark.asyncio
@@ -81,29 +83,29 @@ async def test_fetch_html_parse_error():
 
 @pytest.mark.asyncio
 async def test_fetch_youtube_success():
-    mock_transcript = MagicMock()
-    mock_transcript.__iter__ = MagicMock(return_value=iter([
-        MagicMock(text="Hello"),
-        MagicMock(text="world"),
-    ]))
+    metadata = YouTubeMetadata(title="Test Talk", channel="Speaker")
+    mock_transcribe = MagicMock(return_value=("Hello world transcript", metadata))
 
-    with patch("src.fetcher.YouTubeTranscriptApi") as MockApi:
-        mock_instance = MagicMock()
-        mock_instance.fetch = MagicMock(return_value=mock_transcript)
-        MockApi.return_value = mock_instance
-
-        result = await fetch("https://www.youtube.com/watch?v=abc123")
-        assert result == "Hello world"
+    with patch("src.transcriber.fetch_youtube_transcript", mock_transcribe):
+        text, meta = await fetch("https://www.youtube.com/watch?v=abc123")
+        assert text == "Hello world transcript"
+        assert meta.title == "Test Talk"
+        assert meta.channel == "Speaker"
 
 
 @pytest.mark.asyncio
-async def test_fetch_youtube_no_transcript():
-    from youtube_transcript_api._errors import TranscriptsDisabled
+async def test_fetch_youtube_download_error():
+    mock_transcribe = MagicMock(side_effect=FetchError("yt-dlp failed: geo-blocked"))
 
-    with patch("src.fetcher.YouTubeTranscriptApi") as MockApi:
-        mock_instance = MagicMock()
-        mock_instance.fetch = MagicMock(side_effect=TranscriptsDisabled("abc123"))
-        MockApi.return_value = mock_instance
+    with patch("src.transcriber.fetch_youtube_transcript", mock_transcribe):
+        with pytest.raises(FetchError, match="yt-dlp failed"):
+            await fetch("https://www.youtube.com/watch?v=blocked")
 
-        with pytest.raises(ParseError, match="No transcript available"):
-            await fetch("https://youtu.be/abc123")
+
+@pytest.mark.asyncio
+async def test_fetch_youtube_transcription_empty():
+    mock_transcribe = MagicMock(side_effect=ParseError("Transcription returned empty"))
+
+    with patch("src.transcriber.fetch_youtube_transcript", mock_transcribe):
+        with pytest.raises(ParseError, match="Transcription returned empty"):
+            await fetch("https://www.youtube.com/watch?v=empty")

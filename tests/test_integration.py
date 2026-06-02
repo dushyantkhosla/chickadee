@@ -33,7 +33,7 @@ async def test_pipeline_full_run_writes_file():
         with patch("src.vault.settings.OBSIDIAN_VAULT_PATH", tmp):
             with patch("src.vault_index.settings.OBSIDIAN_VAULT_PATH", tmp):
                 with patch("src.main.fetch", new_callable=AsyncMock) as mock_fetch:
-                    mock_fetch.return_value = "Article text here"
+                    mock_fetch.return_value = ("Article text here", None)
                     with patch(
                         "src.main.summarise", new_callable=AsyncMock
                     ) as mock_summarise:
@@ -52,7 +52,7 @@ async def test_pipeline_dry_run_does_not_write():
         with patch("src.vault.settings.OBSIDIAN_VAULT_PATH", tmp):
             with patch("src.vault_index.settings.OBSIDIAN_VAULT_PATH", tmp):
                 with patch("src.main.fetch", new_callable=AsyncMock) as mock_fetch:
-                    mock_fetch.return_value = "Article text"
+                    mock_fetch.return_value = ("Article text", None)
                     with patch(
                         "src.main.summarise", new_callable=AsyncMock
                     ) as mock_summarise:

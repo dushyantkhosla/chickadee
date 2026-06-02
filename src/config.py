@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     LM_STUDIO_BASE_URL: str = "http://localhost:1234/v1"
     LM_STUDIO_MODEL: str = "local-model"
 
+    # Transcription (YouTube audio → text via OpenRouter)
+    OPENROUTER_API_KEY: str = ""
+    TRANSCRIPTION_MODEL: str = "xiaomi/mimo-v2.5"
+
     # Vault mode — choose one
     OBSIDIAN_VAULT_PATH: str = "/tmp/chickadee-vault"
     OBSIDIAN_API_KEY: str = ""

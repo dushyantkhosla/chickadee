@@ -20,6 +20,7 @@ FieldNote   — Practitioner posts: release notes, tool evals, benchmarks
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 from typing import Optional
@@ -71,6 +72,10 @@ class ObsidianMetadata(BaseModel):
     source_url:  HttpUrl
     source_type: ContentType
     ingested_on: date
+    upload_date: Optional[date] = Field(
+        default=None,
+        description="Publication date from the source, if available"
+    )
 
 
 class Reflection(BaseModel):
@@ -102,10 +107,6 @@ class TalkNote(BaseModel):
     meta:       ObsidianMetadata
     title:      str
     speaker:    str
-    venue:      Optional[str] = Field(
-        default=None,
-        description="Conference, podcast name, or platform"
-    )
     thesis:     str = Field(
         description="The central claim in one sentence"
     )
@@ -271,6 +272,20 @@ class FieldNote(BaseModel):
 # ── Union type for the router ─────────────────────────────────────────────────
 
 AnyNote = TalkNote | ArticleNote | PaperNote | EssayNote | RepoNote | FieldNote
+
+
+# ── YouTube metadata (from yt-dlp) ───────────────────────────────────────────
+
+@dataclass
+class YouTubeMetadata:
+    """Metadata extracted by yt-dlp during audio download."""
+    title: str
+    channel: str
+    upload_date: Optional[str] = None       # YYYYMMDD from yt-dlp
+    view_count: Optional[int] = None
+    like_count: Optional[int] = None
+    channel_follower_count: Optional[int] = None
+    categories: list[str] = field(default_factory=list)
 
 
 def note_to_slug(note: AnyNote, max_chars: int = 50) -> str:

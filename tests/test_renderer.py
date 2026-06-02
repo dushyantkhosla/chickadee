@@ -102,12 +102,11 @@ def test_render_omits_none_reflection_fields():
     assert "**Now what:**" not in md
 
 
-def test_render_talk_note_with_venue_and_quotes():
+def test_render_talk_note_with_quotes():
     note = TalkNote(
         meta=_meta(source_type=ContentType.talk),
         title="A Talk",
         speaker="Alice",
-        venue="PyCon",
         thesis="Talk thesis",
         arguments=["Arg 1"],
         key_quotes=["Quote 1"],
@@ -115,7 +114,7 @@ def test_render_talk_note_with_venue_and_quotes():
         reflection=Reflection(),
     )
     md = render(note)
-    assert "_Alice — PyCon_" in md
+    assert "_Alice_" in md
     assert "## Key quotes" in md
     assert "> Quote 1" in md
 
