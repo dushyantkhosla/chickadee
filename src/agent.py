@@ -1,6 +1,7 @@
 """PydanticAI agents for classification and summarisation."""
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
@@ -10,7 +11,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from src.config import settings
-from src.lmstudio_utils import ensure_model_loaded
+from src.lmstudio_utils import ensure_model_loaded, is_model_loaded, load_model
 from src.models import (
     AnyNote,
     ArticleNote,
@@ -29,6 +30,14 @@ def ensure_lm_studio() -> None:
     """Ensure LM Studio server is running and the configured model is loaded."""
     model = ensure_model_loaded(settings.LM_STUDIO_MODEL)
     logger.info("LM Studio ready — model: %s", model)
+
+
+def _reload_if_unloaded() -> None:
+    """Reload the model if it was evicted (e.g. by TTL or memory pressure)."""
+    if not is_model_loaded(settings.LM_STUDIO_MODEL):
+        logger.warning("Model was unloaded, reloading...")
+        load_model(settings.LM_STUDIO_MODEL)
+        time.sleep(2)
 
 
 _CLASSIFIER_SYSTEM_PROMPT = """
@@ -65,12 +74,19 @@ async def classify(text: str) -> ContentType:
     Falls back to ``ContentType.article`` if the LLM call fails.
     """
     ensure_lm_studio()
-    try:
-        result = await _classifier_agent.run(text[:4000])  # truncate to keep it fast
-        return result.output
-    except Exception as exc:
-        logger.warning("Classifier LLM failed (%s), falling back to article", exc)
-        return ContentType.article
+    for attempt in range(3):
+        try:
+            result = await _classifier_agent.run(text[:4000])
+            return result.output
+        except Exception as exc:
+            err_text = str(exc).lower()
+            if "unloaded" in err_text and attempt < 2:
+                logger.warning("Model unloaded during classification, reloading (attempt %d/3)...", attempt + 1)
+                _reload_if_unloaded()
+                continue
+            logger.warning("Classifier LLM failed (%s), falling back to article", exc)
+            return ContentType.article
+    return ContentType.article
 
 
 # ── Summariser ──────────────────────────────────────────────────────────────
@@ -162,34 +178,44 @@ async def summarise(
     ensure_lm_studio()
     note_type = _CONTENT_TYPE_TO_MODEL[content_type]
 
-    if content_type == ContentType.talk and deps is not None:
-        agent = Agent(
-            model=_summariser_model,
-            deps_type=TalkMetadata,
-            output_type=note_type,
-            model_settings=ModelSettings(temperature=0.2),
-            instructions=_build_talk_prompt(vault_titles, url),
-        )
+    for attempt in range(3):
+        try:
+            if content_type == ContentType.talk and deps is not None:
+                agent = Agent(
+                    model=_summariser_model,
+                    deps_type=TalkMetadata,
+                    output_type=note_type,
+                    model_settings=ModelSettings(temperature=0.2),
+                    instructions=_build_talk_prompt(vault_titles, url),
+                )
 
-        @agent.instructions
-        def inject_metadata(ctx: RunContext[TalkMetadata]) -> str:
-            d = ctx.deps
-            cats = ", ".join(d.categories) if d.categories else "none"
-            return (
-                f"Title: {d.title}\n"
-                f"Speaker: {d.speaker}\n"
-                f"Categories: {cats}\n"
-                f"Upload date: {d.upload_date.isoformat() if d.upload_date else 'unknown'}"
-            )
+                @agent.instructions
+                def inject_metadata(ctx: RunContext[TalkMetadata]) -> str:
+                    d = ctx.deps
+                    cats = ", ".join(d.categories) if d.categories else "none"
+                    return (
+                        f"Title: {d.title}\n"
+                        f"Speaker: {d.speaker}\n"
+                        f"Categories: {cats}\n"
+                        f"Upload date: {d.upload_date.isoformat() if d.upload_date else 'unknown'}"
+                    )
 
-        result = await agent.run(text[:8000], deps=deps)
-    else:
-        agent = Agent(
-            model=_summariser_model,
-            output_type=note_type,
-            model_settings=ModelSettings(temperature=0.2),
-            instructions=_build_summariser_prompt(content_type, vault_titles, url),
-        )
-        result = await agent.run(text[:8000])
+                result = await agent.run(text[:8000], deps=deps)
+            else:
+                agent = Agent(
+                    model=_summariser_model,
+                    output_type=note_type,
+                    model_settings=ModelSettings(temperature=0.2),
+                    instructions=_build_summariser_prompt(content_type, vault_titles, url),
+                )
+                result = await agent.run(text[:8000])
 
-    return result.output
+            return result.output
+
+        except Exception as exc:
+            err_text = str(exc).lower()
+            if "unloaded" in err_text and attempt < 2:
+                logger.warning("Model unloaded during summarisation, reloading (attempt %d/3)...", attempt + 1)
+                _reload_if_unloaded()
+                continue
+            raise

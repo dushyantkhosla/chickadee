@@ -7,7 +7,9 @@ from datetime import date
 from pathlib import Path
 
 from src.agent import TalkMetadata, classify, summarise
+from src.config import settings
 from src.fetcher import fetch
+from src.lmstudio_utils import unload_model
 from src.models import AnyNote, ContentType, YouTubeMetadata, note_to_slug
 from src.renderer import render
 from src.router import route
@@ -38,49 +40,52 @@ async def run_pipeline(url: str, dry_run: bool = False) -> tuple[Path | None, An
 
     Returns (path, note). path is None when dry_run=True.
     """
-    print(f"Fetching {url} ...")
-    text, yt_metadata = await fetch(url)
-    print(f"Fetched {len(text.split())} words")
+    try:
+        print(f"Fetching {url} ...")
+        text, yt_metadata = await fetch(url)
+        print(f"Fetched {len(text.split())} words")
 
-    content_type = await resolve_content_type(url, text)
-    print(f"Resolved type: {content_type.value}")
+        content_type = await resolve_content_type(url, text)
+        print(f"Resolved type: {content_type.value}")
 
-    vault_titles = get_titles()
-    print(f"Vault index: {len(vault_titles)} titles")
+        vault_titles = get_titles()
+        print(f"Vault index: {len(vault_titles)} titles")
 
-    # Build talk metadata from yt-dlp if available
-    talk_deps = None
-    if yt_metadata is not None and content_type == ContentType.talk:
-        talk_deps = TalkMetadata(
-            title=yt_metadata.title,
-            speaker=yt_metadata.channel,
-            categories=yt_metadata.categories,
-            upload_date=_parse_upload_date(yt_metadata.upload_date),
-        )
+        # Build talk metadata from yt-dlp if available
+        talk_deps = None
+        if yt_metadata is not None and content_type == ContentType.talk:
+            talk_deps = TalkMetadata(
+                title=yt_metadata.title,
+                speaker=yt_metadata.channel,
+                categories=yt_metadata.categories,
+                upload_date=_parse_upload_date(yt_metadata.upload_date),
+            )
 
-    note = await summarise(text, content_type, vault_titles, url, deps=talk_deps)
+        note = await summarise(text, content_type, vault_titles, url, deps=talk_deps)
 
-    # Inject upload_date into metadata if available
-    if yt_metadata is not None:
-        parsed_date = _parse_upload_date(yt_metadata.upload_date)
-        if parsed_date:
-            note.meta.upload_date = parsed_date
+        # Inject upload_date into metadata if available
+        if yt_metadata is not None:
+            parsed_date = _parse_upload_date(yt_metadata.upload_date)
+            if parsed_date:
+                note.meta.upload_date = parsed_date
 
-    title = getattr(note, "title", getattr(note, "name", "untitled"))
-    print(f"Summarised: {title}")
+        title = getattr(note, "title", getattr(note, "name", "untitled"))
+        print(f"Summarised: {title}")
 
-    markdown = render(note)
-    print(f"Rendered {len(markdown)} chars")
+        markdown = render(note)
+        print(f"Rendered {len(markdown)} chars")
 
-    if dry_run:
-        print("\n--- DRY RUN ---\n")
-        print(markdown)
-        return None, note
+        if dry_run:
+            print("\n--- DRY RUN ---\n")
+            print(markdown)
+            return None, note
 
-    filename = make_filename(note_to_slug(note))
-    path = write(filename, markdown)
-    print(f"Written to {path}")
-    return path, note
+        filename = make_filename(note_to_slug(note))
+        path = write(filename, markdown)
+        print(f"Written to {path}")
+        return path, note
+    finally:
+        unload_model(settings.LM_STUDIO_MODEL)
 
 
 def main() -> None:

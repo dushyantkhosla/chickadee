@@ -6,14 +6,18 @@ These functions are dependency-free (no `lmstudio` package required) and work
 with any project using subprocess to call the `lms` CLI.
 
 Example:
-    from lmstudio_utils import ensure_server_running, load_model
+    from lmstudio_utils import ensure_model_loaded, unload_model
 
-    ensure_server_running()
-    load_model("qwen3.5-4b-mlx")
+    ensure_model_loaded("granite-4.1-8b")
+    # ... use the model ...
+    unload_model("granite-4.1-8b")
 """
 
+import logging
 import subprocess
 import time
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_server_running(timeout: int = 30) -> bool:
@@ -33,10 +37,10 @@ def ensure_server_running(timeout: int = 30) -> bool:
     stderr_lower = result.stderr.strip().lower()
 
     if "running" in stderr_lower or "running on port 1234" in stderr_lower:
-        print("LM Studio server is already running.")
+        logger.info("LM Studio server is already running.")
         return True
 
-    print("LM Studio server is not running. Starting...")
+    logger.info("LM Studio server is not running. Starting...")
     subprocess.run(["lms", "server", "start"], capture_output=True)
 
     elapsed = 0
@@ -50,20 +54,20 @@ def ensure_server_running(timeout: int = 30) -> bool:
             text=True,
         )
         if "running" in status.stderr.strip().lower():
-            print("LM Studio server is now running.")
+            logger.info("LM Studio server is now running.")
             return True
 
-    print(f"Timeout after {timeout}s waiting for server to start.")
+    logger.warning("Timeout after %ds waiting for server to start.", timeout)
     return False
 
 
-def load_model(model_name: str, default_model: str = "liquid/lfm2.5-1.2b", ttl: int = 600) -> str:
+def load_model(model_name: str, default_model: str = "liquid/lfm2.5-1.2b", ttl: int = 900) -> str:
     """Load a model into LM Studio if not already loaded.
 
     Args:
         model_name: Exact model identifier (from `lms ls`).
         default_model: Fallback model if model_name is not found.
-        ttl: Time-to-live in seconds for the loaded model. Default 600.
+        ttl: Time-to-live in seconds for the loaded model. Default 900.
 
     Returns:
         The model identifier that was loaded (or selected).
@@ -78,7 +82,7 @@ def load_model(model_name: str, default_model: str = "liquid/lfm2.5-1.2b", ttl: 
     if model_name and model_name in available_models:
         selected_model = model_name
     else:
-        print(f"Model '{model_name}' not found. Using default: {default_model}")
+        logger.warning("Model '%s' not found. Using default: %s", model_name, default_model)
         selected_model = default_model
 
     ps_result = subprocess.run(
@@ -93,11 +97,39 @@ def load_model(model_name: str, default_model: str = "liquid/lfm2.5-1.2b", ttl: 
             capture_output=True,
             check=True,
         )
-        print(f"Loaded model: {selected_model}")
+        logger.info("Loaded model: %s (ttl=%ds)", selected_model, ttl)
     else:
-        print(f"Model already loaded: {selected_model}")
+        logger.info("Model already loaded: %s", selected_model)
 
     return selected_model
+
+
+def unload_model(model_name: str) -> None:
+    """Unload a model from LM Studio to free GPU memory.
+
+    Args:
+        model_name: Model identifier to unload.
+    """
+    ps_result = subprocess.run(
+        ["lms", "ps"],
+        capture_output=True,
+        text=True,
+    )
+    if model_name in ps_result.stdout:
+        logger.info("Unloading model: %s", model_name)
+        subprocess.run(["lms", "unload", model_name], capture_output=True)
+    else:
+        logger.debug("Model %s not loaded, nothing to unload.", model_name)
+
+
+def is_model_loaded(model_name: str) -> bool:
+    """Check if a model is currently loaded in LM Studio."""
+    ps_result = subprocess.run(
+        ["lms", "ps"],
+        capture_output=True,
+        text=True,
+    )
+    return model_name in ps_result.stdout
 
 
 def ensure_model_loaded(model_name: str, default_model: str = "liquid/lfm2.5-1.2b") -> str:
