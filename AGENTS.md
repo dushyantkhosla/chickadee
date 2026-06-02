@@ -1,4 +1,4 @@
-# CLAUDE.md — Structured Summarisation Pipeline
+# AGENTS.md — Chickadee
 
 ## What this app does
 
@@ -10,37 +10,27 @@ One human action (send link). Everything else is automated.
 
 ---
 
-## Ground rules
-
-### Start of every session
-
-1. Read `manage/TODO.md` and `plans/`
-2. Ask user: Press E for Execution mode, P for Plan Mode
-3. If E -> *"which plan to execute?"* then use `executing-plans` and `test-driven-development` skill to implement plan 
-4. If P -> *"Let's brainstorm ... which to-do?"*, then load the `brainstorming` skill and show a list of to-dos
-5. After brainstorming loop done → write plan in /plans → Please start a /new session
-
-### End of every session
-
-0. Ask user if wants to remove done plan from `plans/`
-1. Move completed items from `manage/TODO.md` to `manage/DONE.md`
-2. Present a caveman summary of work done this session and write it to `manage/LOGS.md`
-
----
-
 ## Project layout
 
 ```
 .
-├── CLAUDE.md               # this file
-├── models.py               # Pydantic note types — source of truth for all schemas
-├── router.py               # URL → ContentType detection
-├── agent.py                # PydanticAI agent: fetch + summarise + structure
-├── renderer.py             # AnyNote → Markdown string
-├── vault.py                # Write to Obsidian (REST API or filesystem)
-├── bot.py                  # Telegram webhook handler
-├── vault_index.py          # Reads vault note titles for link grounding
-└── .env                    # secrets — never commit
+├── AGENTS.md                 # this file
+├── src/
+│   ├── models.py             # Pydantic note types — source of truth for all schemas
+│   ├── router.py             # URL → ContentType detection
+│   ├── fetcher.py            # URL → text (yt-dlp for YouTube, httpx+trafilatura for web)
+│   ├── transcriber.py        # yt-dlp audio download + OpenRouter transcription
+│   ├── agent.py              # PydanticAI agents: classify + summarise
+│   ├── renderer.py           # AnyNote → Markdown string
+│   ├── vault.py              # Write to Obsidian (filesystem)
+│   ├── vault_index.py        # Reads vault note titles for link grounding
+│   ├── bot.py                # Telegram bot (polling mode)
+│   ├── config.py             # Pydantic settings from .env
+│   ├── exceptions.py         # FetchError, ParseError, VaultWriteError
+│   └── lmstudio_utils.py     # LM Studio server + model management (CLI)
+├── tests/
+├── plans/
+└── pyproject.toml
 ```
 
 ---
@@ -51,14 +41,14 @@ One human action (send link). Everything else is automated.
 
 Six note types, all sharing two embedded models:
 
-- `ObsidianMetadata` — vault housekeeping: tags, link fields, source, date
+- `ObsidianMetadata` — vault housekeeping: tags, link fields, source, date, upload_date
 - `Reflection` — personal interpretation: `my_take`, `so_what`, `now_what`
 
 Every note type also has `open_questions: list[str]`.
 
 | Type | Routed from | Key distinguishing fields |
 |---|---|---|
-| `TalkNote` | youtube.com, vimeo.com | `speaker`, `thesis`, `arguments`, `key_quotes` |
+| `TalkNote` | youtube.com, vimeo.com | `speaker` (from yt-dlp channel), `thesis`, `arguments`, `key_quotes` |
 | `ArticleNote` | general web | `thesis`, `key_points`, `evidence` |
 | `PaperNote` | arxiv.org, doi.org | `hypothesis`, `methodology`, `findings`, `limitations` |
 | `EssayNote` | substack.com, opinion sites | `claimed` vs `evidenced` (separated deliberately) |
@@ -82,7 +72,7 @@ Domain determines `ContentType` with certainty. Skip LLM classification entirely
 Examples: `youtube.com` → `TalkNote`, `arxiv.org` → `PaperNote`, `github.com` → `RepoNote`.
 
 **Tier 2 — Everything else** (unknown domains + `MULTI_TYPE_DOMAINS`)
-Fetch the article first, then run a cheap LLM classification call (Haiku) to determine
+Fetch the article first, then run a cheap LLM classification call to determine
 `ContentType` before the main summarisation call. `MULTI_TYPE_DOMAINS` documents
 known multi-type domains (e.g. `anthropic.com`, `simonwillison.net`) as a guard
 against accidentally adding them to the unambiguous whitelist.
@@ -94,14 +84,18 @@ in one pass causes the model to anchor on the wrong type early.
 ```
 domain in UNAMBIGUOUS_DOMAINS → type decided, proceed to summarisation
          ↓
-fetch article content
+fetch content (YouTube: yt-dlp → OpenRouter transcription; web: httpx + trafilatura)
          ↓
-LLM classifies ContentType (6 options, enum-constrained, Haiku)
+LLM classifies ContentType (6 options, enum-constrained)
          ↓
-LLM summarises into matched schema (Sonnet)
+LLM summarises into matched schema
 ```
 
 Default fallback if classification is uncertain: `ContentType.article`.
+
+### YouTube flow
+
+For YouTube URLs, metadata (title, channel, categories, upload_date) comes from yt-dlp — the LLM only produces summary content (thesis, arguments, quotes, etc.) via PydanticAI `deps_type` (`TalkMetadata`).
 
 ### Link grounding
 
@@ -134,7 +128,8 @@ see_also: ["[[Note Title C]]"]
 contradicts: []
 source_url: https://...
 source_type: talk
-ingested_on: 2026-05-04
+ingested_on: 2026-06-02
+upload_date: 2026-04-24          # optional, from source
 ---
 ```
 
@@ -201,52 +196,51 @@ Target folder: `Inbox/` — let Obsidian's graph form naturally, move notes manu
 
 ## Telegram bot (bot.py)
 
-- Single command: user sends a URL (plain message or with optional note)
-- Bot replies with: note title + tags + a one-line summary on success
-- Bot replies with: error type + URL on failure (fetch error, parse error, schema validation error)
-- Use webhook mode in production, polling in dev
+- Single command: user sends a URL
+- Bot replies immediately: "Received. Filing it away now..."
+- Processing happens in background (async deque per chat)
+- Bot replies on completion: note title + tags + summary
+- Bot replies on failure: error type + URL
+- User can paste another URL while processing — no blocking
 
 ---
 
-## Vault index (vault_index.py)
+## LM Studio (lmstudio_utils.py)
 
-- Reads all `.md` filenames from the vault at agent invocation time
-- Strips `.md` extension, returns `list[str]` of note titles
-- Passed into agent system prompt for link grounding
-- Cache with a short TTL (60s) — vault doesn't change that fast
+CLI-based helpers for `lms` CLI:
+- `ensure_server_running()` — starts server if not running
+- `load_model(name, ttl=900)` — loads with TTL for auto-unload
+- `unload_model(name)` — frees GPU memory
+- `is_model_loaded(name)` — checks `lms ps`
+- `ensure_model_loaded(name)` — convenience: server + load
+
+The pipeline unloads the model in a `finally` block after each run. Retry-on-unload logic exists in `classify()` and `summarise()` (up to 3 attempts).
 
 ---
 
 ## Environment variables (.env)
 
 ```
-ANTHROPIC_API_KEY=
+OPENROUTER_API_KEY=             # YouTube transcription (OpenRouter mimo-v2.5)
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_WEBHOOK_SECRET=
+BOT_ALLOWED_CHAT_IDS=*          # comma-separated or * for open access
+
+LM_STUDIO_BASE_URL=http://localhost:1234/v1
+LM_STUDIO_MODEL=local-model
 
 # Vault — choose one mode
-OBSIDIAN_VAULT_PATH=          # Option B: filesystem path
-OBSIDIAN_API_KEY=             # Option A: REST API key
-OBSIDIAN_BASE_URL=            # Option A: e.g. http://localhost:27123
+OBSIDIAN_VAULT_PATH=            # Option B: filesystem path
+OBSIDIAN_API_KEY=               # Option A: REST API key
+OBSIDIAN_BASE_URL=              # Option A: e.g. http://localhost:27123
 ```
-
----
-
-## What to build first
-
-1. `models.py` — already drafted, validate with a few manual Pydantic instantiations
-2. `renderer.py` — pure function, easy to unit test, no LLM needed
-3. `agent.py` — start with `ArticleNote` only, get the full loop working
-4. `vault.py` — filesystem mode first, REST API later
-5. `bot.py` — add Telegram last, use a CLI entrypoint during development
 
 ---
 
 ## Constraints and preferences
 
 - Pseudocode before implementation on anything non-trivial
-- Method-chaining style where it aids readability
 - No placeholder text in `Reflection` fields — `None` is correct when uncertain
 - `models.py` is append-only for new note types — never modify existing field names once the vault has notes using them (breaks frontmatter parsing)
-- Keep `URL_ROUTING` updated as new domains are added
-
+- Keep `UNAMBIGUOUS_DOMAINS` updated as new domains are added
+- Run `pytest` before committing — 71 tests must pass
