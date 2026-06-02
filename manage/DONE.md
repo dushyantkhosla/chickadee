@@ -11,3 +11,4 @@
 - Integration pipeline — fetch → route → classify → index → summarise → render → write
 - CLI — `--dry-run` flag, error handling at every stage
 - Telegram bot — polling mode, URL → note flow with confirmation messages
+- Docker + Remote LM Studio — Dockerfile, docker-compose, async HTTP client replacing CLI subprocess

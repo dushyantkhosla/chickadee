@@ -29,3 +29,32 @@
 1. Obsidian REST API mode
 2. Multimodal support
 3. Richer link grounding
+4. Implement frugal-lm skill
+
+---
+
+## 2026-05-05 — Docker + Remote LM Studio
+
+**Plan executed:** `plans/2026-05-05-docker-remote-lmstudio.md`
+
+**What built:**
+- `src/lmstudio_client.py` — async HTTP client for LM Studio REST API (is_reachable, is_model_loaded, ensure_model_loaded, list_models)
+- `src/lmstudio_utils.py` — deleted (was CLI/subprocess-based, won't work in Docker)
+- `src/agent.py` — replaced ensure_lm_studio() with LMStudioClient
+- `src/config.py` — added LM_STUDIO_API_KEY
+- `src/exceptions.py` — added LMStudioError
+- `Dockerfile` — multi-stage build (builder + runtime)
+- `docker-compose.yml` — single service, vault bind-mount, restart policy
+- `.dockerignore` — excludes .venv, .git, tests, etc.
+- `README.md` — deployment instructions for Raspberry Pi
+- `tests/test_lmstudio_client.py` — 7 new tests (all mock httpx)
+- `tests/conftest.py` — auto-mocks lm_client for existing tests
+
+**Commits:** 6 on `feat/docker-remote-lmstudio` branch
+**Test count:** 64 → **71 passed**
+
+**TODO remaining:**
+1. Obsidian REST API mode
+2. Multimodal support
+3. Richer link grounding
+4. Implement frugal-lm skill
