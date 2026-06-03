@@ -8,3 +8,11 @@ class ParseError(Exception):
 
 class VaultWriteError(Exception):
     """Raised when a note cannot be written to the vault."""
+
+
+class LMStudioError(Exception):
+    """Raised when LM Studio operations fail."""
+
+
+class ProviderError(Exception):
+    """Raised when all providers in the chain are exhausted."""
