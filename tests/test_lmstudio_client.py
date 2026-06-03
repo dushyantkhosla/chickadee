@@ -2,6 +2,7 @@ import pytest
 import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.exceptions import LMStudioError
 from src.lmstudio_client import LMStudioClient
 
 
@@ -84,5 +85,5 @@ class TestEnsureModelLoaded:
         with patch.object(client, "is_model_loaded", new_callable=AsyncMock, return_value=False), \
              patch.object(client._client, "post", new_callable=AsyncMock,
                           side_effect=httpx.HTTPStatusError("500", request=httpx.Request("POST", "http://test"), response=httpx.Response(500))):
-            with pytest.raises(Exception):
+            with pytest.raises(LMStudioError):
                 await client.ensure_model_loaded()
