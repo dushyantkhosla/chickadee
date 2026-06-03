@@ -1,4 +1,4 @@
-"""LLM provider chain — tries providers in priority order.
+"""LLM provider chain — resolves models and runs via PydanticAI FallbackModel.
 
 Priority order:
 1. LM Studio (laptop, when reachable) — free
@@ -10,6 +10,9 @@ Usage:
         system_prompt="...",
         user_prompt="...",
         output_type=MyModel,
+        deps=my_deps,                 # optional
+        deps_type=MyDeps,             # optional, required if deps is set
+        setup=lambda agent: ...,      # optional, for @agent.instructions etc
     )
     if result is None:
         # all providers failed
@@ -17,108 +20,121 @@ Usage:
 
 import logging
 import os
-from typing import Type, TypeVar
+from typing import Any, Callable, Type, TypeVar
 
 import httpx
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from pydantic_ai.models import Model
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.settings import ModelSettings
 
-from src.providers import (
-    PROVIDERS,
-    ModelEntry,
-    resolve_provider,
-)
+from src.providers import PROVIDERS, build_models
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
+_CLOUD_PROVIDER_ORDER = ["vercel:paid", "ollama", "groq", "cerebras", "openrouter:free"]
 
-def _lm_studio_entry() -> ModelEntry | None:
-    """Build a ModelEntry for LM Studio if reachable. Returns None otherwise."""
+
+def _lm_studio_reachable() -> bool:
+    """Sync HTTP probe, 3s timeout. False on any error.
+
+    Called from resolve_models() to decide whether to add LM Studio as the
+    primary provider. A 3s timeout is short enough not to block the bot
+    noticeably when the laptop is off, and long enough to tolerate a slow
+    LM Studio cold start.
+    """
     base_url = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1")
-    model_name = os.getenv("LM_STUDIO_MODEL", "gemma-4-e4b-it")
-    api_key = os.getenv("LM_STUDIO_API_KEY", "")
-
-    # Sync probe — fast check with short timeout
     try:
         with httpx.Client(timeout=3.0) as probe:
-            resp = probe.get(f"{base_url.rstrip('/')}/models")
-            resp.raise_for_status()
+            probe.get(f"{base_url.rstrip('/')}/models").raise_for_status()
+        return True
     except (httpx.HTTPError, httpx.TimeoutException):
-        return None
+        return False
 
-    provider = OpenAIProvider(base_url=base_url, api_key=api_key or "x")
-    return ModelEntry(
-        label=f"lmstudio:{model_name}",
-        model=OpenAIChatModel(model_name, provider=provider),
-        settings=ModelSettings(timeout=60.0),  # local models may be slower
+
+def _build_lm_studio_model() -> Model:
+    base_url = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1")
+    model_name = os.getenv("LM_STUDIO_MODEL", "gemma-4-e4b-it")
+    api_key = os.getenv("LM_STUDIO_API_KEY", "") or "x"
+    return OpenAIChatModel(
+        model_name,
+        provider=OpenAIProvider(base_url=base_url, api_key=api_key),
     )
 
 
-def resolve_full_chain() -> list[ModelEntry]:
-    """Resolve the complete provider chain: LM Studio → Vercel → free pool."""
-    entries: list[ModelEntry] = []
+def resolve_models() -> list[Model]:
+    """Return the ordered model list. LM Studio first if reachable.
 
-    # 1. LM Studio (if reachable)
-    lm = _lm_studio_entry()
-    if lm:
-        entries.append(lm)
+    The list is consumed by call_with_fallback() to build a FallbackModel.
+    """
+    models: list[Model] = []
+    if _lm_studio_reachable():
+        models.append(_build_lm_studio_model())
         logger.info("LM Studio reachable — added as primary provider")
 
-    # 2. Cloud providers (Vercel paid → free pool)
-    entries.extend(resolve_cloud_chain())
+    for name in _CLOUD_PROVIDER_ORDER:
+        if config := PROVIDERS.get(name):
+            models.extend(build_models(config))
 
-    return entries
-
-
-def resolve_cloud_chain() -> list[ModelEntry]:
-    """Resolve cloud-only providers: Vercel paid → free pool."""
-    entries: list[ModelEntry] = []
-
-    # Vercel paid (reliable, $5/mo budget)
-    vercel_config = PROVIDERS.get("vercel:paid")
-    if vercel_config:
-        entries.extend(resolve_provider(vercel_config))
-
-    # Free pool providers
-    free_providers = ["ollama", "groq", "cerebras", "openrouter:free"]
-    for name in free_providers:
-        config = PROVIDERS.get(name)
-        if config:
-            entries.extend(resolve_provider(config))
-
-    return entries
+    return models
 
 
 async def call_with_fallback(
     system_prompt: str,
     user_prompt: str,
     output_type: Type[T],
+    *,
+    deps: Any = None,
+    deps_type: type | None = None,
+    setup: Callable[[Agent], None] | None = None,
     max_retries: int = 3,
 ) -> T | None:
-    """Try providers in chain order. Returns first success or None.
+    """Run via FallbackModel. Returns first success or None. Never raises.
 
-    Never raises — all exceptions are caught and logged.
+    output_type is constrained to a Pydantic BaseModel subclass (never str);
+    PydanticAI's default ToolOutput mode validates the response against the
+    schema and retries up to max_retries on validation failure.
+
+    deps and deps_type are paired: setting one requires the other.
+    setup is an optional callback invoked after Agent construction but
+    before run(); use it to attach @agent.instructions, @agent.tool, etc.
     """
-    for entry in resolve_full_chain():
-        agent = Agent(
-            model=entry.model,
-            model_settings=entry.settings,
-            output_type=output_type,
-            instructions=system_prompt,
-            retries=max_retries,
-        )
-        try:
-            result = await agent.run(user_prompt)
-            logger.info("Success with provider: %s", entry.label)
-            return result.output
-        except Exception as exc:
-            logger.warning("Provider %s failed: %s", entry.label, exc)
-            continue
+    if deps is not None and deps_type is None:
+        raise ValueError("deps provided without deps_type")
+    if deps_type is not None and deps is None:
+        raise ValueError("deps_type provided without deps")
 
-    logger.error("All providers in chain exhausted")
-    return None
+    models = resolve_models()
+    if not models:
+        logger.error("No providers available — all env keys unset or LM Studio unreachable")
+        return None
+
+    agent_kwargs: dict = {
+        "model": FallbackModel(*models),
+        "output_type": output_type,
+        "instructions": system_prompt,
+        "retries": max_retries,
+    }
+    if deps_type is not None:
+        agent_kwargs["deps_type"] = deps_type
+
+    agent = Agent(**agent_kwargs)
+
+    if setup is not None:
+        setup(agent)
+
+    run_kwargs: dict = {}
+    if deps is not None:
+        run_kwargs["deps"] = deps
+
+    try:
+        result = await agent.run(user_prompt, **run_kwargs)
+        logger.info("Success on fallback chain")
+        return result.output
+    except Exception as exc:
+        logger.error("All providers exhausted: %s", exc)
+        return None
