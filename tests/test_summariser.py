@@ -177,8 +177,11 @@ async def test_summarise_raises_when_chain_exhausted():
 
 
 @pytest.mark.asyncio
-async def test_summarise_talk_with_deps_injects_metadata():
-    """When TalkMetadata is provided, it should be injected into the user prompt."""
+async def test_summarise_talk_with_deps_invokes_setup_callback():
+    """When TalkMetadata is provided for a talk, summarise should call
+    call_with_fallback with deps, deps_type, and a setup callback.
+    The setup callback is what restores the RunContext instructions flow.
+    """
     note = MagicMock()
     deps = TalkMetadata(
         title="Test Talk",
@@ -197,8 +200,35 @@ async def test_summarise_talk_with_deps_injects_metadata():
         )
         assert result == note
         call_kwargs = mock_call.call_args.kwargs
-        user_prompt = call_kwargs["user_prompt"]
-        assert "Test Talk" in user_prompt
-        assert "Test Speaker" in user_prompt
-        assert "ai, ml" in user_prompt
-        assert "2026-01-01" in user_prompt
+        assert call_kwargs["deps"] is deps
+        assert call_kwargs["deps_type"] is TalkMetadata
+        assert callable(call_kwargs["setup"])
+        # User prompt no longer contains the metadata string-injection.
+        assert "Test Talk" not in call_kwargs["user_prompt"]
+        assert "Test Speaker" not in call_kwargs["user_prompt"]
+
+
+@pytest.mark.asyncio
+async def test_summarise_non_talk_does_not_pass_deps():
+    """Non-talk notes should not pass deps or setup to the chain."""
+    note = MagicMock()
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
+        await summarise("text", ContentType.article, [], "https://example.com")
+        call_kwargs = mock_call.call_args.kwargs
+        assert call_kwargs["deps"] is None
+        assert call_kwargs["deps_type"] is None
+        assert call_kwargs["setup"] is None
+
+
+@pytest.mark.asyncio
+async def test_summarise_talk_without_deps_does_not_pass_deps():
+    """A talk with no deps should not pass deps or setup."""
+    note = MagicMock()
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
+        await summarise("text", ContentType.talk, [], "https://example.com")
+        call_kwargs = mock_call.call_args.kwargs
+        assert call_kwargs["deps"] is None
+        assert call_kwargs["deps_type"] is None
+        assert call_kwargs["setup"] is None

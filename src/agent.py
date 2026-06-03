@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
+from pydantic_ai import Agent, RunContext
+
 from src.chain import call_with_fallback
 from src.models import (
     AnyNote,
@@ -129,6 +131,29 @@ Rules:
 {vault_section}""".strip()
 
 
+def _inject_talk_metadata(ctx: RunContext[TalkMetadata]) -> str:
+    """System-channel injection of talk metadata. PydanticAI concatenates
+    this with the static instructions and sends it as the system message,
+    so the LLM treats it as authoritative rather than as user data.
+    """
+    d = ctx.deps
+    cats = ", ".join(d.categories) if d.categories else "none"
+    return (
+        f"Title: {d.title}\n"
+        f"Speaker: {d.speaker}\n"
+        f"Categories: {cats}\n"
+        f"Upload date: {d.upload_date.isoformat() if d.upload_date else 'unknown'}"
+    )
+
+
+def _setup_talk_metadata(agent: Agent) -> None:
+    """Attach the @agent.instructions callback that injects TalkMetadata
+    via RunContext. Called by call_with_fallback after Agent construction
+    but before agent.run().
+    """
+    agent.instructions(_inject_talk_metadata)
+
+
 async def summarise(
     text: str,
     content_type: ContentType,
@@ -136,29 +161,29 @@ async def summarise(
     url: str,
     deps: TalkMetadata | None = None,
 ) -> AnyNote:
-    """Summarise content into a typed *Note using the provider chain."""
+    """Summarise content into a typed *Note using the provider chain.
+
+    For talk notes with deps, attach _inject_talk_metadata to the Agent
+    via the setup callback so TalkMetadata flows through the system channel
+    via RunContext. For all other calls, the Agent has no deps.
+    """
     note_type = _CONTENT_TYPE_TO_MODEL[content_type]
 
     if content_type == ContentType.talk and deps is not None:
         prompt = _build_talk_prompt(vault_titles, url)
-        # Inject metadata into user prompt (can't use RunContext with chain abstraction)
-        cats = ", ".join(deps.categories) if deps.categories else "none"
-        meta_block = (
-            f"\n\n---\n"
-            f"Title: {deps.title}\n"
-            f"Speaker: {deps.speaker}\n"
-            f"Categories: {cats}\n"
-            f"Upload date: {deps.upload_date.isoformat() if deps.upload_date else 'unknown'}"
-        )
-        user_prompt = text[:8000] + meta_block
     else:
         prompt = _build_summariser_prompt(content_type, vault_titles, url)
-        user_prompt = text[:8000]
+
+    user_prompt = text[:8000]
+    use_deps = content_type == ContentType.talk and deps is not None
 
     result = await call_with_fallback(
         system_prompt=prompt,
         user_prompt=user_prompt,
         output_type=note_type,
+        deps=deps if use_deps else None,
+        deps_type=TalkMetadata if use_deps else None,
+        setup=_setup_talk_metadata if use_deps else None,
         max_retries=3,
     )
     if result is None:
