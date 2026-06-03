@@ -4,7 +4,17 @@ Telegram bot that ingests URLs → fetches content → summarises with LLM → w
 
 ## Architecture
 
-Single Docker container on a Raspberry Pi 4 (ARM64), polling Telegram, calling LM Studio REST API on a MacBook Air on the same LAN. Vault bind-mounted from host.
+Single Docker container on a Raspberry Pi 4 (ARM64), polling Telegram, with a 3-tier LLM fallback chain:
+
+| Priority | Provider | Model | Cost |
+|---|---|---|---|
+| 1 | LM Studio (laptop) | `gemma-4-e4b-it` | Free |
+| 2 | Vercel AI Gateway | `openai/gpt-oss-20b` | $5/mo free tier |
+| 3 | Free pool | Ollama, Groq, Cerebras, OpenRouter | Free |
+
+LM Studio is probed via HTTP before each pipeline run. If the laptop is off or unreachable, it's skipped. YouTube transcription always uses OpenRouter (cloud-only).
+
+Vault bind-mounted from host.
 
 ## Deployment (Raspberry Pi)
 
@@ -16,13 +26,23 @@ cd /home/dushyant/code/chickadee
 cp .env.example .env
 ```
 
-Edit `.env` with real values:
+Edit `.env` with real values. Required:
 
-```
+```bash
 TELEGRAM_BOT_TOKEN=<your-token>
-LM_STUDIO_BASE_URL=http://192.168.1.52:1234/v1
-LM_STUDIO_MODEL=<your-model-key>
 OBSIDIAN_VAULT_PATH=/app/vault
+```
+
+For local LLM (when laptop is on):
+```bash
+LM_STUDIO_BASE_URL=http://192.168.1.52:1234/v1
+LM_STUDIO_MODEL=gemma-4-e4b-it
+```
+
+For cloud fallback (at least one needed):
+```bash
+VERCEL_AI_GATEWAY_API_KEY=<your-key>
+OPENROUTER_API_KEY=<your-key>
 ```
 
 ### 2. Create vault directory
@@ -42,12 +62,6 @@ docker compose up -d
 ```bash
 docker compose logs -f
 ```
-
-### 5. On the MacBook (LM Studio)
-
-1. Open LM Studio
-2. Load the model configured in `LM_STUDIO_MODEL`
-3. Ensure server is running on port 1234
 
 ### Rsync backup (optional)
 

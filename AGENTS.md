@@ -15,19 +15,23 @@ One human action (send link). Everything else is automated.
 ```
 .
 ├── AGENTS.md                 # this file
+├── Dockerfile                # Two-stage Docker build (uv sync → slim runtime)
+├── docker-compose.yml        # Single service, restart unless-stopped, vault bind mount
 ├── src/
 │   ├── models.py             # Pydantic note types — source of truth for all schemas
 │   ├── router.py             # URL → ContentType detection
 │   ├── fetcher.py            # URL → text (yt-dlp for YouTube, httpx+trafilatura for web)
 │   ├── transcriber.py        # yt-dlp audio download + OpenRouter transcription
-│   ├── agent.py              # PydanticAI agents: classify + summarise
+│   ├── agent.py              # PydanticAI agents: classify + summarise (via provider chain)
+│   ├── chain.py              # LLM provider chain — tries LM Studio → Vercel → free pool
+│   ├── providers.py          # Provider registry + ModelEntry resolution from env vars
+│   ├── lmstudio_client.py    # Async HTTP client for LM Studio REST API
 │   ├── renderer.py           # AnyNote → Markdown string
 │   ├── vault.py              # Write to Obsidian (filesystem)
 │   ├── vault_index.py        # Reads vault note titles for link grounding
 │   ├── bot.py                # Telegram bot (polling mode)
 │   ├── config.py             # Pydantic settings from .env
-│   ├── exceptions.py         # FetchError, ParseError, VaultWriteError
-│   └── lmstudio_utils.py     # LM Studio server + model management (CLI)
+│   └── exceptions.py         # FetchError, ParseError, VaultWriteError, LMStudioError
 ├── tests/
 ├── plans/
 └── pyproject.toml
@@ -93,9 +97,40 @@ LLM summarises into matched schema
 
 Default fallback if classification is uncertain: `ContentType.article`.
 
+### LLM provider chain
+
+All classification and summarisation calls go through a 3-tier fallback chain
+(`src/chain.py`, `src/providers.py`). The chain tries providers in priority order
+and returns the first success. All exceptions are caught — it never raises.
+
+| Priority | Provider | Model | Cost |
+|---|---|---|---|
+| 1 | LM Studio (laptop) | `gemma-4-e4b-it` | Free |
+| 2 | Vercel AI Gateway | `openai/gpt-oss-20b` | $5/mo free tier |
+| 3 | Free pool | Ollama, Groq, Cerebras, OpenRouter (8 models) | Free |
+
+LM Studio is probed via a fast HTTP check (3s timeout). If the laptop is off or
+unreachable, it's skipped silently. Vercel is the reliable paid tier. The free pool
+is the last resort.
+
+`call_with_fallback()` in `chain.py` handles the loop:
+```
+for entry in resolve_full_chain():
+    agent = Agent(model=entry.model, ...)
+    try: return await agent.run(user_prompt)
+    except: continue
+return None
+```
+
+The provider registry (`providers.py`) reads model lists from env vars.
+Models within each provider are shuffled for load distribution.
+
 ### YouTube flow
 
-For YouTube URLs, metadata (title, channel, categories, upload_date) comes from yt-dlp — the LLM only produces summary content (thesis, arguments, quotes, etc.) via PydanticAI `deps_type` (`TalkMetadata`).
+For YouTube URLs, metadata (title, channel, categories, upload_date) comes from yt-dlp — the LLM only produces summary content (thesis, arguments, quotes, etc.).
+
+YouTube transcription is always cloud-only (OpenRouter multimodal, `src/transcriber.py`).
+No local transcription fallback.
 
 ### Link grounding
 
@@ -205,35 +240,74 @@ Target folder: `Inbox/` — let Obsidian's graph form naturally, move notes manu
 
 ---
 
-## LM Studio (lmstudio_utils.py)
+## LM Studio client (lmstudio_client.py)
 
-CLI-based helpers for `lms` CLI:
-- `ensure_server_running()` — starts server if not running
-- `load_model(name, ttl=900)` — loads with TTL for auto-unload
-- `unload_model(name)` — frees GPU memory
-- `is_model_loaded(name)` — checks `lms ps`
-- `ensure_model_loaded(name)` — convenience: server + load
+Async HTTP client for LM Studio's REST API (replaces the old subprocess-based `lmstudio_utils.py`).
 
-The pipeline unloads the model in a `finally` block after each run. Retry-on-unload logic exists in `classify()` and `summarise()` (up to 3 attempts).
+- `is_reachable()` — HTTP probe, returns False on any error
+- `is_model_loaded()` — checks `/api/v1/models` for loaded instances
+- `ensure_model_loaded()` — loads the model if not already loaded
+- `close()` — closes the HTTP client
+
+The provider chain in `chain.py` uses a synchronous HTTP probe to check LM Studio
+reachability before adding it to the chain. The async client is available for more
+detailed interactions (batch model loading, etc.).
+
+## Docker deployment
+
+Two-stage build: `uv sync` in builder, slim runtime with only `.venv` and `src/`.
+
+```bash
+docker compose up -d      # build and start
+docker compose logs -f    # check logs
+docker compose down       # stop
+```
+
+The container restarts unless stopped. Vault is bind-mounted from the host.
+The bot polls Telegram and processes URLs sequentially per chat.
 
 ---
 
 ## Environment variables (.env)
 
 ```
-OPENROUTER_API_KEY=             # YouTube transcription (OpenRouter mimo-v2.5)
+# ── Telegram ──────────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN=
-TELEGRAM_WEBHOOK_SECRET=
-BOT_ALLOWED_CHAT_IDS=*          # comma-separated or * for open access
+BOT_ALLOWED_CHAT_IDS=*              # comma-separated or * for open access
 
-LM_STUDIO_BASE_URL=http://localhost:1234/v1
-LM_STUDIO_MODEL=local-model
+# ── LM Studio (laptop, primary when available) ───────────────────────────
+LM_STUDIO_BASE_URL=http://192.168.1.52:1234/v1
+LM_STUDIO_MODEL=gemma-4-e4b-it
+LM_STUDIO_API_KEY=                  # optional
 
-# Vault — choose one mode
-OBSIDIAN_VAULT_PATH=            # Option B: filesystem path
-OBSIDIAN_API_KEY=               # Option A: REST API key
-OBSIDIAN_BASE_URL=              # Option A: e.g. http://localhost:27123
+# ── Vercel AI Gateway (paid, reliable fallback, $5/mo free tier) ─────────
+VERCEL_AI_GATEWAY_API_KEY=
+VERCEL_PAID_MODEL=openai/gpt-oss-20b
+
+# ── Free pool (fallback when Vercel credits exhausted) ───────────────────
+OLLAMA_API_KEY=
+OLLAMA_MODELS=gemma4:31b,gpt-oss:20b
+
+GROQ_API_KEY=
+GROQ_MODELS=openai/gpt-oss-120b
+
+CEREBRAS_API_KEY=
+CEREBRAS_MODELS=gpt-oss-120b
+
+OPENROUTER_API_KEY=                 # also used for YouTube transcription
+OPENROUTER_FREE_MODELS=google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free,openai/gpt-oss-20b:free,openai/gpt-oss-120b:free
+
+# ── Transcription (YouTube audio → text) ─────────────────────────────────
+TRANSCRIPTION_MODEL=xiaomi/mimo-v2.5
+
+# ── Vault — choose one mode ─────────────────────────────────────────────
+OBSIDIAN_VAULT_PATH=                # Option B: filesystem path
+OBSIDIAN_API_KEY=                   # Option A: REST API key
+OBSIDIAN_BASE_URL=                  # Option A: e.g. http://localhost:27123
 ```
+
+At least one of `VERCEL_AI_GATEWAY_API_KEY` or `OPENROUTER_API_KEY` is needed
+for the cloud fallback to work.
 
 ---
 
@@ -243,4 +317,4 @@ OBSIDIAN_BASE_URL=              # Option A: e.g. http://localhost:27123
 - No placeholder text in `Reflection` fields — `None` is correct when uncertain
 - `models.py` is append-only for new note types — never modify existing field names once the vault has notes using them (breaks frontmatter parsing)
 - Keep `UNAMBIGUOUS_DOMAINS` updated as new domains are added
-- Run `pytest` before committing — 71 tests must pass
+- Run `pytest` before committing — 95 tests must pass
