@@ -1,9 +1,11 @@
+"""Tests for the summariser (summarise function)."""
+
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.agent import summarise
+from src.agent import summarise, TalkMetadata
 from src.models import (
     ArticleNote,
     ContentType,
@@ -39,11 +41,8 @@ async def test_summarise_returns_talk_note():
         open_questions=[],
         reflection=Reflection(my_take=None, so_what=None, now_what=None),
     )
-    with patch("src.agent.Agent") as MockAgent:
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(return_value=MagicMock(output=note))
-        MockAgent.return_value = mock_instance
-
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
         result = await summarise("text", ContentType.talk, [], "https://example.com")
         assert isinstance(result, TalkNote)
         assert result.title == "A Talk"
@@ -62,11 +61,8 @@ async def test_summarise_returns_article_note():
         open_questions=["Q1"],
         reflection=Reflection(my_take="Nice", so_what=None, now_what=None),
     )
-    with patch("src.agent.Agent") as MockAgent:
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(return_value=MagicMock(output=note))
-        MockAgent.return_value = mock_instance
-
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
         result = await summarise("text", ContentType.article, [], "https://example.com")
         assert isinstance(result, ArticleNote)
         assert result.reflection.so_what is None
@@ -86,11 +82,8 @@ async def test_summarise_returns_paper_note():
         open_questions=[],
         reflection=Reflection(),
     )
-    with patch("src.agent.Agent") as MockAgent:
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(return_value=MagicMock(output=note))
-        MockAgent.return_value = mock_instance
-
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
         result = await summarise("text", ContentType.paper, [], "https://example.com")
         assert isinstance(result, PaperNote)
 
@@ -107,11 +100,8 @@ async def test_summarise_returns_essay_note():
         open_questions=[],
         reflection=Reflection(),
     )
-    with patch("src.agent.Agent") as MockAgent:
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(return_value=MagicMock(output=note))
-        MockAgent.return_value = mock_instance
-
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
         result = await summarise("text", ContentType.essay, [], "https://example.com")
         assert isinstance(result, EssayNote)
 
@@ -127,11 +117,8 @@ async def test_summarise_returns_repo_note():
         open_questions=[],
         reflection=Reflection(),
     )
-    with patch("src.agent.Agent") as MockAgent:
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(return_value=MagicMock(output=note))
-        MockAgent.return_value = mock_instance
-
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
         result = await summarise("text", ContentType.repo, [], "https://example.com")
         assert isinstance(result, RepoNote)
 
@@ -151,11 +138,8 @@ async def test_summarise_returns_field_note():
         open_questions=[],
         reflection=Reflection(),
     )
-    with patch("src.agent.Agent") as MockAgent:
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(return_value=MagicMock(output=note))
-        MockAgent.return_value = mock_instance
-
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
         result = await summarise("text", ContentType.field, [], "https://example.com")
         assert isinstance(result, FieldNote)
 
@@ -163,28 +147,58 @@ async def test_summarise_returns_field_note():
 @pytest.mark.asyncio
 async def test_summarise_prompt_includes_vault_titles():
     vault_titles = ["Existing Note", "Another Note"]
-    with patch("src.agent.Agent") as MockAgent:
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(return_value=MagicMock(output=MagicMock()))
-        MockAgent.return_value = mock_instance
-
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = MagicMock()
         await summarise("text", ContentType.article, vault_titles, "https://example.com")
 
-        call_kwargs = MockAgent.call_args.kwargs
-        assert "Existing Note" in call_kwargs["instructions"]
-        assert "Another Note" in call_kwargs["instructions"]
+        call_kwargs = mock_call.call_args.kwargs
+        assert "Existing Note" in call_kwargs["system_prompt"]
+        assert "Another Note" in call_kwargs["system_prompt"]
         assert call_kwargs["output_type"] == ArticleNote
 
 
 @pytest.mark.asyncio
 async def test_summarise_prompt_includes_url_and_type():
-    with patch("src.agent.Agent") as MockAgent:
-        mock_instance = MagicMock()
-        mock_instance.run = AsyncMock(return_value=MagicMock(output=MagicMock()))
-        MockAgent.return_value = mock_instance
-
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = MagicMock()
         await summarise("text", ContentType.talk, [], "https://talk.example.com")
 
-        call_kwargs = MockAgent.call_args.kwargs
-        assert "https://talk.example.com" in call_kwargs["instructions"]
-        assert ContentType.talk.value in call_kwargs["instructions"]
+        call_kwargs = mock_call.call_args.kwargs
+        assert "https://talk.example.com" in call_kwargs["system_prompt"]
+        assert ContentType.talk.value in call_kwargs["system_prompt"]
+
+
+@pytest.mark.asyncio
+async def test_summarise_raises_when_chain_exhausted():
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = None
+        with pytest.raises(RuntimeError, match="all providers exhausted"):
+            await summarise("text", ContentType.article, [], "https://example.com")
+
+
+@pytest.mark.asyncio
+async def test_summarise_talk_with_deps_injects_metadata():
+    """When TalkMetadata is provided, it should be injected into the user prompt."""
+    note = MagicMock()
+    deps = TalkMetadata(
+        title="Test Talk",
+        speaker="Test Speaker",
+        categories=["ai", "ml"],
+        upload_date=date(2026, 1, 1),
+    )
+    with patch("src.agent.call_with_fallback", new_callable=AsyncMock) as mock_call:
+        mock_call.return_value = note
+        result = await summarise(
+            "Transcript text",
+            ContentType.talk,
+            [],
+            "https://youtube.com/watch?v=123",
+            deps=deps,
+        )
+        assert result == note
+        call_kwargs = mock_call.call_args.kwargs
+        user_prompt = call_kwargs["user_prompt"]
+        assert "Test Talk" in user_prompt
+        assert "Test Speaker" in user_prompt
+        assert "ai, ml" in user_prompt
+        assert "2026-01-01" in user_prompt

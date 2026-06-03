@@ -9,7 +9,6 @@ from pathlib import Path
 from src.agent import TalkMetadata, classify, summarise
 from src.config import settings
 from src.fetcher import fetch
-# from src.lmstudio_utils import unload_model  # Task 4: refactor
 from src.models import AnyNote, ContentType, YouTubeMetadata, note_to_slug
 from src.renderer import render
 from src.router import route

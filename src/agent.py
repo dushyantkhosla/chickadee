@@ -1,17 +1,14 @@
-"""PydanticAI agents for classification and summarisation."""
+"""PydanticAI agents for classification and summarisation.
+
+All LLM calls go through the provider chain (LM Studio → Vercel → free pool).
+"""
 
 import logging
-import time
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
-from pydantic_ai import Agent, ModelSettings, RunContext
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
-
-from src.config import settings
-# from src.lmstudio_utils import ensure_model_loaded, is_model_loaded, load_model  # Task 4: refactor
+from src.chain import call_with_fallback
 from src.models import (
     AnyNote,
     ArticleNote,
@@ -25,20 +22,19 @@ from src.models import (
 
 logger = logging.getLogger(__name__)
 
-
-# def ensure_lm_studio() -> None:  # Task 4: refactor
-#     """Ensure LM Studio server is running and the configured model is loaded."""
-#     model = ensure_model_loaded(settings.LM_STUDIO_MODEL)
-#     logger.info("LM Studio ready — model: %s", model)
+# ── Talk metadata (pre-populated from yt-dlp) ──────────────────────────────
 
 
-# def _reload_if_unloaded() -> None:  # Task 4: refactor
-#     """Reload the model if it was evicted (e.g. by TTL or memory pressure)."""
-#     if not is_model_loaded(settings.LM_STUDIO_MODEL):
-#         logger.warning("Model was unloaded, reloading...")
-#         load_model(settings.LM_STUDIO_MODEL)
-#         time.sleep(2)
+@dataclass
+class TalkMetadata:
+    """Pre-populated metadata from yt-dlp. Passed as deps to the talk summariser."""
+    title: str
+    speaker: str
+    categories: list[str]
+    upload_date: Optional[date]
 
+
+# ── Classifier ─────────────────────────────────────────────────────────────
 
 _CLASSIFIER_SYSTEM_PROMPT = """
 You are a content classifier. Given an article's text, decide which of these
@@ -54,51 +50,25 @@ categories best describes the original piece:
 Respond with exactly one category. If uncertain, default to "article".
 """
 
-_classifier_agent = Agent(
-    model=OpenAIChatModel(
-        settings.LM_STUDIO_MODEL,
-        provider=OpenAIProvider(
-            base_url=settings.LM_STUDIO_BASE_URL,
-            api_key="x",  # LM Studio does not require a real key
-        ),
-    ),
-    model_settings=ModelSettings(temperature=0.0),
-    output_type=ContentType,
-    instructions=_CLASSIFIER_SYSTEM_PROMPT,
-)
-
 
 async def classify(text: str) -> ContentType:
-    """Classify article text into a ContentType using a small local LLM.
+    """Classify article text into a ContentType.
 
     Falls back to ``ContentType.article`` if the LLM call fails.
     """
-    # ensure_lm_studio()  # Task 4: refactor
-    for attempt in range(3):
-        try:
-            result = await _classifier_agent.run(text[:4000])
-            return result.output
-        except Exception as exc:
-            err_text = str(exc).lower()
-            if "unloaded" in err_text and attempt < 2:
-                logger.warning("Model unloaded during classification, reloading (attempt %d/3)...", attempt + 1)
-                # _reload_if_unloaded()  # Task 4: refactor
-                continue
-            logger.warning("Classifier LLM failed (%s), falling back to article", exc)
-            return ContentType.article
-    return ContentType.article
+    result = await call_with_fallback(
+        system_prompt=_CLASSIFIER_SYSTEM_PROMPT,
+        user_prompt=text[:4000],
+        output_type=ContentType,
+        max_retries=3,
+    )
+    if result is None:
+        logger.warning("Classification failed — all providers exhausted, defaulting to article")
+        return ContentType.article
+    return result
 
 
 # ── Summariser ──────────────────────────────────────────────────────────────
-
-@dataclass
-class TalkMetadata:
-    """Pre-populated metadata from yt-dlp. Passed as deps to the talk summariser."""
-    title: str
-    speaker: str
-    categories: list[str]
-    upload_date: Optional[date]
-
 
 _CONTENT_TYPE_TO_MODEL = {
     ContentType.talk: TalkNote,
@@ -108,14 +78,6 @@ _CONTENT_TYPE_TO_MODEL = {
     ContentType.repo: RepoNote,
     ContentType.field: FieldNote,
 }
-
-_summariser_model = OpenAIChatModel(
-    settings.LM_STUDIO_MODEL,
-    provider=OpenAIProvider(
-        base_url=settings.LM_STUDIO_BASE_URL,
-        api_key="x",
-    ),
-)
 
 
 def _build_summariser_prompt(
@@ -174,48 +136,31 @@ async def summarise(
     url: str,
     deps: TalkMetadata | None = None,
 ) -> AnyNote:
-    """Summarise article text into a typed *Note using a local LLM."""
-    # ensure_lm_studio()  # Task 4: refactor
+    """Summarise content into a typed *Note using the provider chain."""
     note_type = _CONTENT_TYPE_TO_MODEL[content_type]
 
-    for attempt in range(3):
-        try:
-            if content_type == ContentType.talk and deps is not None:
-                agent = Agent(
-                    model=_summariser_model,
-                    deps_type=TalkMetadata,
-                    output_type=note_type,
-                    model_settings=ModelSettings(temperature=0.2),
-                    instructions=_build_talk_prompt(vault_titles, url),
-                )
+    if content_type == ContentType.talk and deps is not None:
+        prompt = _build_talk_prompt(vault_titles, url)
+        # Inject metadata into user prompt (can't use RunContext with chain abstraction)
+        cats = ", ".join(deps.categories) if deps.categories else "none"
+        meta_block = (
+            f"\n\n---\n"
+            f"Title: {deps.title}\n"
+            f"Speaker: {deps.speaker}\n"
+            f"Categories: {cats}\n"
+            f"Upload date: {deps.upload_date.isoformat() if deps.upload_date else 'unknown'}"
+        )
+        user_prompt = text[:8000] + meta_block
+    else:
+        prompt = _build_summariser_prompt(content_type, vault_titles, url)
+        user_prompt = text[:8000]
 
-                @agent.instructions
-                def inject_metadata(ctx: RunContext[TalkMetadata]) -> str:
-                    d = ctx.deps
-                    cats = ", ".join(d.categories) if d.categories else "none"
-                    return (
-                        f"Title: {d.title}\n"
-                        f"Speaker: {d.speaker}\n"
-                        f"Categories: {cats}\n"
-                        f"Upload date: {d.upload_date.isoformat() if d.upload_date else 'unknown'}"
-                    )
-
-                result = await agent.run(text[:8000], deps=deps)
-            else:
-                agent = Agent(
-                    model=_summariser_model,
-                    output_type=note_type,
-                    model_settings=ModelSettings(temperature=0.2),
-                    instructions=_build_summariser_prompt(content_type, vault_titles, url),
-                )
-                result = await agent.run(text[:8000])
-
-            return result.output
-
-        except Exception as exc:
-            err_text = str(exc).lower()
-            if "unloaded" in err_text and attempt < 2:
-                logger.warning("Model unloaded during summarisation, reloading (attempt %d/3)...", attempt + 1)
-                # _reload_if_unloaded()  # Task 4: refactor
-                continue
-            raise
+    result = await call_with_fallback(
+        system_prompt=prompt,
+        user_prompt=user_prompt,
+        output_type=note_type,
+        max_retries=3,
+    )
+    if result is None:
+        raise RuntimeError(f"Summarisation failed — all providers exhausted for {url}")
+    return result
