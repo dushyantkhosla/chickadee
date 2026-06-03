@@ -2,7 +2,9 @@ import os
 import pytest
 from unittest.mock import patch
 
-from src.providers import ModelEntry, ProviderConfig, PROVIDERS, resolve_provider
+from pydantic_ai.models.openai import OpenAIChatModel
+
+from src.providers import ProviderConfig, PROVIDERS, build_models
 
 
 class TestProviderConfig:
@@ -39,12 +41,12 @@ class TestProviderConfig:
             models_default="model-a",
         )
         with patch.dict(os.environ, {}, clear=True):
-            entries = list(resolve_provider(config))
-            assert entries == []
+            models = build_models(config)
+            assert models == []
 
 
-class TestResolveProvider:
-    def test_yields_model_entries_for_valid_config(self):
+class TestBuildModels:
+    def test_yields_model_instances_for_valid_config(self):
         config = ProviderConfig(
             name="test",
             api_key_env="TEST_KEY",
@@ -53,11 +55,9 @@ class TestResolveProvider:
             models_default="model-a,model-b",
         )
         with patch.dict(os.environ, {"TEST_KEY": "sk-test"}):
-            entries = list(resolve_provider(config))
-            assert len(entries) == 2
-            assert all(isinstance(e, ModelEntry) for e in entries)
-            assert entries[0].label.startswith("test:")
-            assert entries[1].label.startswith("test:")
+            models = build_models(config)
+            assert len(models) == 2
+            assert all(isinstance(m, OpenAIChatModel) for m in models)
 
     def test_vercel_provider_type(self):
         config = ProviderConfig(
@@ -67,5 +67,6 @@ class TestResolveProvider:
             models_default="openai/gpt-oss-20b",
         )
         with patch.dict(os.environ, {"VERCEL_KEY": "test-key"}):
-            entries = list(resolve_provider(config))
-            assert len(entries) == 1
+            models = build_models(config)
+            assert len(models) == 1
+            assert isinstance(models[0], OpenAIChatModel)

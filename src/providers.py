@@ -1,34 +1,24 @@
 """Provider registry and model entry resolution.
 
-Based on dk-frugal-lm and dk-freellm patterns.
-Each provider is a config entry that resolves to zero or more ModelEntry instances.
+Each provider is a config entry that resolves to a list of PydanticAI Model
+instances via build_models(). The list is consumed by chain.resolve_models().
 """
 
 import os
 import random
 from dataclasses import dataclass
-from typing import Iterator
 
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.vercel import VercelProvider
-from pydantic_ai.settings import ModelSettings
-
-
-@dataclass
-class ModelEntry:
-    """A resolved model ready for use with PydanticAI Agent."""
-    label: str                  # e.g. "vercel:openai/gpt-oss-20b"
-    model: OpenAIChatModel
-    settings: ModelSettings
 
 
 @dataclass
 class ProviderConfig:
-    """Configuration for a single provider. Resolves to ModelEntry instances."""
+    """Configuration for a single provider. Resolves to PydanticAI Model instances."""
     name: str
     api_key_env: str
-    provider_type: str          # "openai" or "vercel"
+    provider_type: str            # "openai" | "vercel"
     base_url: str | None = None
     models_env: str | None = None
     models_default: str = ""
@@ -47,27 +37,21 @@ def _build_provider(base_url: str | None, api_key: str, provider_type: str):
     return OpenAIProvider(base_url=base_url or "", api_key=api_key)
 
 
-def resolve_provider(config: ProviderConfig, shuffle: bool = True) -> Iterator[ModelEntry]:
-    """Resolve a provider config into ModelEntry instances.
+def build_models(config: ProviderConfig, shuffle: bool = True) -> list[OpenAIChatModel]:
+    """Build PydanticAI Model instances for this provider.
 
-    Yields nothing if the API key is not set.
-    Shuffles models by default for load distribution.
+    Returns [] if the API key is not set. Shuffles models for load distribution.
     """
     api_key = os.getenv(config.api_key_env, "")
     if not api_key:
-        return
+        return []
 
     models = config.get_models()
     if shuffle:
-        models = random.sample(models, len(models))
+        random.shuffle(models)
 
-    for model_name in models:
-        provider = _build_provider(config.base_url, api_key, config.provider_type)
-        yield ModelEntry(
-            label=f"{config.name}:{model_name}",
-            model=OpenAIChatModel(model_name, provider=provider),
-            settings=ModelSettings(timeout=30.0),
-        )
+    provider = _build_provider(config.base_url, api_key, config.provider_type)
+    return [OpenAIChatModel(name, provider=provider) for name in models]
 
 
 # ── Provider registry ────────────────────────────────────────────────────────
