@@ -1,4 +1,4 @@
-"""Provider registry and model entry resolution.
+"""Provider registry and model builder.
 
 Each provider is a config entry that resolves to a list of PydanticAI Model
 instances via build_models(). The list is consumed by chain.resolve_models().
