@@ -8,7 +8,7 @@ from src.models import (
     ContentType,
     EssayNote,
     FieldNote,
-    ObsidianMetadata,
+    VaultMetadata,
     PaperNote,
     Reflection,
     RepoNote,
@@ -26,7 +26,7 @@ def _meta(**kwargs):
         ingested_on=date(2026, 5, 4),
     )
     defaults.update(kwargs)
-    return ObsidianMetadata(**defaults)
+    return VaultMetadata(**defaults)
 
 
 def _parse_frontmatter(md: str) -> dict:

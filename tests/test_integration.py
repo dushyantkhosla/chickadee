@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.main import run_pipeline
-from src.models import ArticleNote, ContentType, ObsidianMetadata, Reflection
+from src.models import ArticleNote, ContentType, VaultMetadata, Reflection
 
 
 def _article_fixture():
     return ArticleNote(
-        meta=ObsidianMetadata(
+        meta=VaultMetadata(
             tags=["integration-test"],
             source_url="https://example.com",
             source_type=ContentType.article,

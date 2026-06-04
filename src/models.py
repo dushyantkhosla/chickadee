@@ -4,7 +4,7 @@ Structured summarisation pipeline — Pydantic models
 Each *Note type maps to a content category detected via two-tier routing:
 (1) UNAMBIGUOUS_DOMAINS — URL alone determines type, no LLM needed.
 (2) Everything else — LLM classifies from article text before summarising.
-All notes embed ObsidianMetadata (vault housekeeping) and Reflection
+All notes embed VaultMetadata (vault housekeeping) and Reflection
 (personal interpretation).
 
 Content types
@@ -47,7 +47,7 @@ class ShelfLife(str, Enum):
 
 # ── Shared components ─────────────────────────────────────────────────────────
 
-class ObsidianMetadata(BaseModel):
+class VaultMetadata(BaseModel):
     """
     Rendered as YAML frontmatter in every note.
     Link fields (builds_on, see_also, contradicts) should be populated
@@ -104,7 +104,7 @@ class TalkNote(BaseModel):
     YouTube talks, conference presentations, expert lectures, podcasts.
     Routed from: youtube.com, vimeo.com, podcast feeds.
     """
-    meta:       ObsidianMetadata
+    meta:       VaultMetadata
     title:      str
     speaker:    str
     thesis:     str = Field(
@@ -130,7 +130,7 @@ class ArticleNote(BaseModel):
     Blog posts, journalism, general web articles.
     Routed from: medium.com, and the long tail of domains.
     """
-    meta:       ObsidianMetadata
+    meta:       VaultMetadata
     title:      str
     author:     Optional[str] = None
     thesis:     str = Field(
@@ -154,7 +154,7 @@ class PaperNote(BaseModel):
     Academic papers. Routed from: arxiv.org, doi.org, journal domains.
     Structure follows IMRaD convention.
     """
-    meta:        ObsidianMetadata
+    meta:        VaultMetadata
     title:       str
     authors:     list[str]
     year:        Optional[int] = None
@@ -184,7 +184,7 @@ class EssayNote(BaseModel):
     personal blogs, and sites with strong authorial voice.
     Separates claimed assertions from evidenced ones.
     """
-    meta:       ObsidianMetadata
+    meta:       VaultMetadata
     title:      str
     author:     Optional[str] = None
     thesis:     str = Field(
@@ -208,7 +208,7 @@ class RepoNote(BaseModel):
     GitHub repositories, libraries, technical documentation.
     Routed from: github.com, docs.* domains.
     """
-    meta:          ObsidianMetadata
+    meta:          VaultMetadata
     name:          str
     what_it_does:  str = Field(
         description="One sentence description of purpose"
@@ -239,7 +239,7 @@ class FieldNote(BaseModel):
     - code_snippets preserves reproducible commands
     - shelf_life flags how quickly this will go stale
     """
-    meta:          ObsidianMetadata
+    meta:          VaultMetadata
     title:         str
     author:        Optional[str] = None
     subject:       str = Field(

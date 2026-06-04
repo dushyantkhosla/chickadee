@@ -11,7 +11,7 @@ from src.models import (
     ContentType,
     EssayNote,
     FieldNote,
-    ObsidianMetadata,
+    VaultMetadata,
     PaperNote,
     Reflection,
     RepoNote,
@@ -21,7 +21,7 @@ from src.models import (
 
 
 def _meta(source_type: ContentType):
-    return ObsidianMetadata(
+    return VaultMetadata(
         tags=["test"],
         source_url="https://example.com",
         source_type=source_type,

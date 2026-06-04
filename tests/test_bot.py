@@ -15,10 +15,10 @@ def test_config_has_bot_fields():
 def test_format_confirmation_article():
     """ArticleNote produces a formatted confirmation message."""
     from datetime import date
-    from src.models import ArticleNote, ObsidianMetadata, ContentType
+    from src.models import ArticleNote, VaultMetadata, ContentType
 
     note = ArticleNote(
-        meta=ObsidianMetadata(
+        meta=VaultMetadata(
             tags=["python", "testing"],
             source_url="https://example.com/article",
             source_type=ContentType.article,
@@ -40,10 +40,10 @@ def test_format_confirmation_article():
 def test_format_confirmation_repo():
     """RepoNote uses 'name' instead of 'title'."""
     from datetime import date
-    from src.models import RepoNote, ObsidianMetadata, ContentType
+    from src.models import RepoNote, VaultMetadata, ContentType
 
     note = RepoNote(
-        meta=ObsidianMetadata(
+        meta=VaultMetadata(
             tags=["tooling"],
             source_url="https://github.com/example/repo",
             source_type=ContentType.repo,
