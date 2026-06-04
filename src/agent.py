@@ -98,11 +98,17 @@ def _build_summariser_prompt(
 
 Output must conform exactly to this Pydantic schema: {schema_name}
 
+The output has a nested "meta" object. It MUST include:
+- meta.tags: list of kebab-case topic tags
+- meta.source_url: the URL provided below
+- meta.source_type: "{content_type.value}"
+- meta.ingested_on: today's date
+- meta.builds_on, meta.see_also, meta.contradicts: leave as empty lists []
+
 Rules:
 - meta.source_url must be "{url}"
 - meta.source_type must be "{content_type.value}"
 - meta.ingested_on must be "{date.today().isoformat()}"
-- meta.tags: kebab-case topic tags
 - Reflection: always include a reflection object with individual fields set to null unless there is genuine insight. Do not set the entire reflection to null. Do not pad with generic text.
 {vault_section}""".strip()
 
@@ -119,14 +125,20 @@ def _build_talk_prompt(vault_titles: list[str], url: str) -> str:
         )
     return f"""You are a research assistant. Summarise the provided talk transcript into a structured talk note.
 
-The title, speaker, and categories are provided via context — do NOT produce title or speaker fields.
+The title, speaker, and categories are provided via context — use them as-is in the output.
 Focus on: thesis, arguments, key_quotes, open_questions, and reflection.
+
+The output has a nested "meta" object. It MUST include:
+- meta.tags: list of kebab-case topic tags
+- meta.source_url: the URL provided below
+- meta.source_type: "talk"
+- meta.ingested_on: today's date
+- meta.builds_on, meta.see_also, meta.contradicts: leave as empty lists []
 
 Rules:
 - meta.source_url must be "{url}"
 - meta.source_type must be "talk"
 - meta.ingested_on must be "{date.today().isoformat()}"
-- meta.tags: kebab-case topic tags (seeded from the provided categories, refine as needed)
 - Reflection: always include a reflection object with individual fields set to null unless there is genuine insight. Do not set the entire reflection to null. Do not pad with generic text.
 {vault_section}""".strip()
 

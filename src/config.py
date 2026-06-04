@@ -1,17 +1,16 @@
-"""Application settings loaded from environment / .env file."""
+"""Application settings loaded from environment variables."""
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
+        env_file="",
         extra="ignore",
     )
 
     # ── Telegram ──────────────────────────────────────────────────────────
-    TELEGRAM_BOT_TOKEN: str = ""
+    CHICKADEE_TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_WEBHOOK_SECRET: str = ""
     BOT_ALLOWED_CHAT_IDS: str = "*"
 

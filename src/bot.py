@@ -216,7 +216,7 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
-    token = settings.TELEGRAM_BOT_TOKEN
+    token = settings.CHICKADEE_TELEGRAM_BOT_TOKEN
     allowed = _parse_allowed(settings.BOT_ALLOWED_CHAT_IDS)
     bot = ChickadeeBot(token, allowed)
 

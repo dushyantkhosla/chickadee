@@ -16,6 +16,45 @@ LM Studio is probed via HTTP before each pipeline run. If the laptop is off or u
 
 Vault bind-mounted from host.
 
+## Environment variables
+
+All secrets are passed via shell environment — never commit `.env` to git.
+
+Set these in `~/.zshrc` (or `~/.bashrc`):
+
+```bash
+# ── Required ────────────────────────────────────────────────────────────
+export CHICKADEE_TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
+export TELEGRAM_WEBHOOK_SECRET=""  # optional, for webhook mode
+
+# ── Telegram access control (optional, defaults to * = open access) ────
+export BOT_ALLOWED_CHAT_IDS="*"  # or comma-separated chat IDs
+
+# ── LM Studio — laptop, primary when available (optional) ──────────────
+export LM_STUDIO_BASE_URL="http://192.168.1.52:1234/v1"
+export LM_STUDIO_MODEL="gemma-4-e4b-it"
+
+# ── Cloud fallback — at least one needed for reliability ────────────────
+export VERCEL_AI_GATEWAY_API_KEY="your-vercel-key"
+export OPENROUTER_API_KEY="your-openrouter-key"
+
+# ── Free pool providers (optional) ─────────────────────────────────────
+export GROQ_API_KEY="your-groq-key"
+export CEREBRAS_API_KEY="your-cerebras-key"
+
+# ── Vault ───────────────────────────────────────────────────────────────
+export OBSIDIAN_VAULT_PATH="/app/vault"  # inside container; host path mounted in compose
+```
+
+After editing, reload your shell:
+```bash
+source ~/.zshrc   # or source ~/.bashrc
+```
+
+Docker Compose reads these from the host shell and passes them into the container. No `.env` file needed.
+
+See `.env.example` for the full list of available variables and their defaults.
+
 ## Deployment (Raspberry Pi)
 
 ### 1. Clone and configure
@@ -23,27 +62,9 @@ Vault bind-mounted from host.
 ```bash
 git clone <repo-url> /home/dushyant/code/chickadee
 cd /home/dushyant/code/chickadee
-cp .env.example .env
 ```
 
-Edit `.env` with real values. Required:
-
-```bash
-TELEGRAM_BOT_TOKEN=<your-token>
-OBSIDIAN_VAULT_PATH=/app/vault
-```
-
-For local LLM (when laptop is on):
-```bash
-LM_STUDIO_BASE_URL=http://192.168.1.52:1234/v1
-LM_STUDIO_MODEL=gemma-4-e4b-it
-```
-
-For cloud fallback (at least one needed):
-```bash
-VERCEL_AI_GATEWAY_API_KEY=<your-key>
-OPENROUTER_API_KEY=<your-key>
-```
+Ensure the env vars above are set in your shell (see "Environment variables" section).
 
 ### 2. Create vault directory
 

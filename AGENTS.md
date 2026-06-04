@@ -24,13 +24,14 @@ One human action (send link). Everything else is automated.
 │   ├── transcriber.py        # yt-dlp audio download + OpenRouter transcription
 │   ├── agent.py              # PydanticAI agents: classify + summarise (via provider chain)
 │   ├── chain.py              # LLM provider chain — tries LM Studio → Vercel → free pool
-│   ├── providers.py          # Provider registry + ModelEntry resolution from env vars
+│   ├── providers.py          # Provider registry + PydanticAI Model resolution via build_models()
 │   ├── lmstudio_client.py    # Async HTTP client for LM Studio REST API
 │   ├── renderer.py           # AnyNote → Markdown string
 │   ├── vault.py              # Write to Obsidian (filesystem)
 │   ├── vault_index.py        # Reads vault note titles for link grounding
 │   ├── bot.py                # Telegram bot (polling mode)
-│   ├── config.py             # Pydantic settings from .env
+│   ├── main.py               # CLI entrypoint: python -m src.main <url>
+│   ├── config.py             # Pydantic settings from env vars
 │   └── exceptions.py         # FetchError, ParseError, VaultWriteError, LMStudioError
 ├── tests/
 ├── plans/
@@ -115,11 +116,10 @@ is the last resort.
 
 `call_with_fallback()` in `chain.py` handles the loop:
 ```
-for entry in resolve_full_chain():
-    agent = Agent(model=entry.model, ...)
-    try: return await agent.run(user_prompt)
-    except: continue
-return None
+models = resolve_models()          # LM Studio (if reachable) + cloud providers
+agent = Agent(model=FallbackModel(*models), ...)
+if setup: setup(agent)             # attach @agent.instructions etc.
+result = await agent.run(user_prompt)
 ```
 
 The provider registry (`providers.py`) reads model lists from env vars.
@@ -142,6 +142,8 @@ No local transcription fallback.
 ### Prompting principles
 
 - Always pass the resolved `ContentType` explicitly into the summarisation call — never ask the summarisation model to infer it
+- Explicitly guide the LLM on the nested `meta` object structure — small models tend to flatten `meta.tags` into `meta_tags` if not told otherwise
+- For talk notes, tell the LLM to use title/speaker from context (don't say "do NOT produce" — they're required fields)
 - For `Reflection`: instruct the model to leave fields `None` rather than pad with generic text
 - For `FieldNote.authors_take`: instruct the model to distinguish the author's opinion from reported facts
 - For `PaperNote`: follow IMRaD — hypothesis → methodology → findings → limitations
@@ -212,15 +214,15 @@ For `FieldNote`, add:
 
 ## Vault integration (vault.py)
 
-Two modes — pick one at setup, configure via `.env`:
+Two modes — pick one at setup, configure via shell env vars:
 
 **Option A — Obsidian Local REST API** (community plugin required)
 - Plugin: `obsidian-local-rest-api`
 - Endpoint: `PUT /vault/{filename}`
-- Set `OBSIDIAN_API_KEY` and `OBSIDIAN_BASE_URL` in `.env`
+- Set `OBSIDIAN_API_KEY` and `OBSIDIAN_BASE_URL` in your shell rc file
 
 **Option B — Direct filesystem write**
-- Set `OBSIDIAN_VAULT_PATH` in `.env`
+- Set `OBSIDIAN_VAULT_PATH` in your shell rc file
 - Write to `{vault_path}/Inbox/{slug}.md`
 - Simpler if the vault is on the same machine or a mounted network drive
 
@@ -268,11 +270,15 @@ The bot polls Telegram and processes URLs sequentially per chat.
 
 ---
 
-## Environment variables (.env)
+## Environment variables
+
+All secrets are passed via shell environment — never commit `.env` to git.
+Set these in `~/.zshrc` or `~/.bashrc`. Docker Compose reads them from the host shell.
 
 ```
-# ── Telegram ──────────────────────────────────────────────────────────────
-TELEGRAM_BOT_TOKEN=
+# ── Required ──────────────────────────────────────────────────────────────
+CHICKADEE_TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=              # optional, for webhook mode
 BOT_ALLOWED_CHAT_IDS=*              # comma-separated or * for open access
 
 # ── LM Studio (laptop, primary when available) ───────────────────────────
@@ -317,4 +323,4 @@ for the cloud fallback to work.
 - No placeholder text in `Reflection` fields — `None` is correct when uncertain
 - `models.py` is append-only for new note types — never modify existing field names once the vault has notes using them (breaks frontmatter parsing)
 - Keep `UNAMBIGUOUS_DOMAINS` updated as new domains are added
-- Run `pytest` before committing — 95 tests must pass
+- Run `pytest` before committing — 104 tests must pass
