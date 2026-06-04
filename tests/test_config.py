@@ -4,27 +4,47 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from src.config import Settings
 
 
 def test_config_loads_from_env():
     s = Settings(
-        OBSIDIAN_VAULT_PATH="/custom/vault",
+        VAULT_PATH="/custom/vault",
     )
-    assert s.OBSIDIAN_VAULT_PATH == "/custom/vault"
+    assert s.VAULT_PATH == "/custom/vault"
 
 
 def test_config_loads_from_dotenv():
     with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
-        f.write("OBSIDIAN_VAULT_PATH=/dotenv/vault\n")
+        f.write("VAULT_PATH=/dotenv/vault\n")
         f.flush()
         path = f.name
 
     try:
         s = Settings(_env_file=path)
-        assert s.OBSIDIAN_VAULT_PATH == "/dotenv/vault"
+        assert s.VAULT_PATH == "/dotenv/vault"
     finally:
         os.unlink(path)
+
+
+def test_config_vault_backend_default():
+    with patch.dict(os.environ, {}, clear=True):
+        s = Settings(_env_file=None)
+        assert s.VAULT_BACKEND == "obsidian"
+
+
+def test_config_vault_backend_logseq():
+    with patch.dict(os.environ, {"VAULT_BACKEND": "logseq"}, clear=False):
+        s = Settings(_env_file=None)
+        assert s.VAULT_BACKEND == "logseq"
+
+
+def test_config_vault_backend_invalid():
+    with patch.dict(os.environ, {"VAULT_BACKEND": "notavalid"}, clear=False):
+        with pytest.raises(Exception):  # ValidationError
+            Settings(_env_file=None)
 
 
 def test_lm_studio_defaults():

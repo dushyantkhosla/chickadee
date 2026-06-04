@@ -1,5 +1,7 @@
 """Application settings loaded from environment variables."""
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,9 +42,8 @@ class Settings(BaseSettings):
     TRANSCRIPTION_MODEL: str = "xiaomi/mimo-v2.5"
 
     # ── Vault ────────────────────────────────────────────────────────────
-    OBSIDIAN_VAULT_PATH: str = "/tmp/chickadee-vault"
-    OBSIDIAN_API_KEY: str = ""
-    OBSIDIAN_BASE_URL: str = ""
+    VAULT_BACKEND: Literal["obsidian", "logseq"] = "obsidian"
+    VAULT_PATH: str = "/tmp/chickadee-vault"
 
 
 settings = Settings()
