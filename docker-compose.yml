@@ -32,3 +32,26 @@ services:
       - VAULT_PATH=${VAULT_PATH:-/tmp/chickadee-vault}
     volumes:
       - /home/dushyant/code/chickadee/vault:/app/vault
+
+  logseq:
+    image: ghcr.io/logseq/logseq-webapp:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:80"
+    volumes:
+      - ${VAULT_PATH:-/tmp/chickadee-vault}:/graphs/chickadee
+
+  obsidian:
+    image: lscr.io/linuxserver/obsidian:latest
+    container_name: chickadee-obsidian
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ${VAULT_PATH:-/tmp/chickadee-vault}:/config/Obsidian
+      - ./obsidian-config:/config
+    ports:
+      - "3001:3001"
+    shm_size: "1gb"
