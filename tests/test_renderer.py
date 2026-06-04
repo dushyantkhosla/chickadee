@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -35,6 +36,7 @@ def _parse_frontmatter(md: str) -> dict:
     return yaml.safe_load(parts[1])
 
 
+@patch("src.renderer.settings.VAULT_BACKEND", "obsidian")
 def test_render_article_note():
     note = ArticleNote(
         meta=_meta(
@@ -70,6 +72,7 @@ def test_render_article_note():
     assert "**Now what:** Do it" in md
 
 
+@patch("src.renderer.settings.VAULT_BACKEND", "obsidian")
 def test_render_omits_empty_open_questions():
     note = ArticleNote(
         meta=_meta(),
@@ -85,6 +88,7 @@ def test_render_omits_empty_open_questions():
     assert "## Open questions" not in md
 
 
+@patch("src.renderer.settings.VAULT_BACKEND", "obsidian")
 def test_render_omits_none_reflection_fields():
     note = ArticleNote(
         meta=_meta(),
@@ -102,6 +106,7 @@ def test_render_omits_none_reflection_fields():
     assert "**Now what:**" not in md
 
 
+@patch("src.renderer.settings.VAULT_BACKEND", "obsidian")
 def test_render_talk_note_with_quotes():
     note = TalkNote(
         meta=_meta(source_type=ContentType.talk),
@@ -119,6 +124,7 @@ def test_render_talk_note_with_quotes():
     assert "> Quote 1" in md
 
 
+@patch("src.renderer.settings.VAULT_BACKEND", "obsidian")
 def test_render_paper_note():
     note = PaperNote(
         meta=_meta(source_type=ContentType.paper),
@@ -140,6 +146,7 @@ def test_render_paper_note():
     assert "- Small sample" in md
 
 
+@patch("src.renderer.settings.VAULT_BACKEND", "obsidian")
 def test_render_essay_note():
     note = EssayNote(
         meta=_meta(source_type=ContentType.essay),
@@ -156,6 +163,7 @@ def test_render_essay_note():
     assert "## Evidenced" in md
 
 
+@patch("src.renderer.settings.VAULT_BACKEND", "obsidian")
 def test_render_repo_note():
     note = RepoNote(
         meta=_meta(source_type=ContentType.repo),
@@ -172,6 +180,7 @@ def test_render_repo_note():
     assert "- Python" in md
 
 
+@patch("src.renderer.settings.VAULT_BACKEND", "obsidian")
 def test_render_field_note_special_sections():
     note = FieldNote(
         meta=_meta(source_type=ContentType.field),
