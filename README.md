@@ -1,6 +1,6 @@
 # Chickadee
 
-Telegram bot that ingests URLs → fetches content → summarises with LLM → writes structured notes to an Obsidian vault.
+Telegram bot that ingests URLs → fetches content → summarises with LLM → writes structured notes to a knowledge vault.
 
 ## Architecture
 
@@ -43,7 +43,8 @@ export GROQ_API_KEY="your-groq-key"
 export CEREBRAS_API_KEY="your-cerebras-key"
 
 # ── Vault ───────────────────────────────────────────────────────────────
-export OBSIDIAN_VAULT_PATH="/app/vault"  # inside container; host path mounted in compose
+export VAULT_BACKEND="obsidian"  # or "logseq"
+export VAULT_PATH="/app/vault"  # inside container; host path mounted in compose
 ```
 
 After editing, reload your shell:

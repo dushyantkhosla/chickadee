@@ -3,8 +3,8 @@
 ## What this app does
 
 Telegram bot receives a URL → PydanticAI agent fetches and reads the content →
-produces a typed `*Note` object → renders it as Markdown with YAML frontmatter →
-writes it to the Obsidian vault.
+produces a typed `*Note` object → renders it as Markdown with YAML frontmatter or Logseq properties →
+writes it to the knowledge vault.
 
 One human action (send link). Everything else is automated.
 
@@ -46,7 +46,7 @@ One human action (send link). Everything else is automated.
 
 Six note types, all sharing two embedded models:
 
-- `ObsidianMetadata` — vault housekeeping: tags, link fields, source, date, upload_date
+- `VaultMetadata` — vault housekeeping: tags, link fields, source, date, upload_date
 - `Reflection` — personal interpretation: `my_take`, `so_what`, `now_what`
 
 Every note type also has `open_questions: list[str]`.
@@ -153,7 +153,7 @@ No local transcription fallback.
 
 ## Renderer (renderer.py)
 
-Converts any `*Note` to an Obsidian-compatible `.md` file.
+Converts any `*Note` to an Obsidian-compatible or Logseq-compatible `.md` file.
 
 ### Frontmatter
 
@@ -214,20 +214,13 @@ For `FieldNote`, add:
 
 ## Vault integration (vault.py)
 
-Two modes — pick one at setup, configure via shell env vars:
+Filesystem write mode — set `VAULT_BACKEND` and `VAULT_PATH` in your shell rc file:
 
-**Option A — Obsidian Local REST API** (community plugin required)
-- Plugin: `obsidian-local-rest-api`
-- Endpoint: `PUT /vault/{filename}`
-- Set `OBSIDIAN_API_KEY` and `OBSIDIAN_BASE_URL` in your shell rc file
+- **Obsidian** (`VAULT_BACKEND=obsidian`): writes to `{vault_path}/Inbox/{date}_{slug}.md`
+- **Logseq** (`VAULT_BACKEND=logseq`): writes to `{vault_path}/pages/{slug}.md`
 
-**Option B — Direct filesystem write**
-- Set `OBSIDIAN_VAULT_PATH` in your shell rc file
-- Write to `{vault_path}/Inbox/{slug}.md`
-- Simpler if the vault is on the same machine or a mounted network drive
-
-File naming: `{YYYY-MM-DD}_{slugified-title}.md`
-Target folder: `Inbox/` — let Obsidian's graph form naturally, move notes manually later.
+Both backends produce the same body content — only the metadata format differs
+(YAML frontmatter for Obsidian, `property:: value` lines for Logseq).
 
 ---
 
@@ -307,9 +300,8 @@ OPENROUTER_FREE_MODELS=google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free
 TRANSCRIPTION_MODEL=xiaomi/mimo-v2.5
 
 # ── Vault — choose one mode ─────────────────────────────────────────────
-OBSIDIAN_VAULT_PATH=                # Option B: filesystem path
-OBSIDIAN_API_KEY=                   # Option A: REST API key
-OBSIDIAN_BASE_URL=                  # Option A: e.g. http://localhost:27123
+VAULT_BACKEND=obsidian              # or logseq
+VAULT_PATH=/tmp/chickadee-vault
 ```
 
 At least one of `VERCEL_AI_GATEWAY_API_KEY` or `OPENROUTER_API_KEY` is needed

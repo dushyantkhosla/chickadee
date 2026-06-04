@@ -20,7 +20,7 @@ CLI → Fetcher → Router → [Classifier] → Summariser → Renderer → Vaul
                           Vault index
 ```
 
-A URL goes in. A structured Markdown note comes out, filed into Obsidian.
+A URL goes in. A structured Markdown note comes out, filed into vault (Obsidian or Logseq).
 See `CLAUDE.md` for file layout and coding conventions.
 See `models.py` for all Pydantic schemas — do not redefine them elsewhere.
 
@@ -46,7 +46,7 @@ Stand up the repo structure, config, and dev environment. No LLM calls yet.
 **Tasks**
 - Create directory structure per `CLAUDE.md`
 - `pyproject.toml` with all dependencies pinned
-- `config.py` using `pydantic-settings`: reads `LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `OBSIDIAN_VAULT_PATH` from `.env`
+- `config.py` using `pydantic-settings`: reads `LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `VAULT_PATH` from `.env`
 - `main.py` CLI entrypoint: accepts a URL as argument, prints `"received: {url}"` and exits
 - Confirm `models.py` imports cleanly — validate one `ArticleNote` instantiation in a smoke test
 
@@ -181,7 +181,7 @@ Write the rendered note to the Obsidian vault. Read existing note titles for lin
 
 **Tasks**
 - `vault.py`: `write(filename: str, content: str) -> Path`
-  - Write to `{OBSIDIAN_VAULT_PATH}/Inbox/{filename}`
+  - Write to `{VAULT_PATH}/Inbox/{filename}`
   - Create `Inbox/` if it doesn't exist
   - Filename format: `{YYYY-MM-DD}_{slugified-title}.md`
   - Raise `VaultWriteError` on failure
@@ -237,11 +237,6 @@ Not in MVP. Implement after Epic 8 is complete and stable.
 - Webhook bot: user sends URL via Telegram, receives confirmation with note title + tags
 - Use `python-telegram-bot` or `aiogram`
 - Deploy considerations: needs a public webhook endpoint (ngrok for dev, VPS/cloud for prod)
-
-### Obsidian REST API mode
-- Alternative to filesystem write: use the `obsidian-local-rest-api` community plugin
-- Useful when vault is on a different machine than the pipeline
-- Add `OBSIDIAN_MODE=api|filesystem` to config; vault.py handles both
 
 ### Multimodal support
 - YouTube videos currently use transcript only — add frame extraction for visual content
