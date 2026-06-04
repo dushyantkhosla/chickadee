@@ -27,7 +27,7 @@ One human action (send link). Everything else is automated.
 │   ├── providers.py          # Provider registry + PydanticAI Model resolution via build_models()
 │   ├── lmstudio_client.py    # Async HTTP client for LM Studio REST API
 │   ├── renderer.py           # AnyNote → Markdown string
-│   ├── vault.py              # Write to Obsidian (filesystem)
+│   ├── vault.py              # Write to vault (Obsidian Inbox/ or Logseq pages/)
 │   ├── vault_index.py        # Reads vault note titles for link grounding
 │   ├── bot.py                # Telegram bot (polling mode)
 │   ├── main.py               # CLI entrypoint: python -m src.main <url>
