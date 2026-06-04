@@ -1,10 +1,196 @@
 # Chickadee
 
-Telegram bot that ingests URLs → fetches content → summarises with LLM → writes structured notes to a knowledge vault.
+> One human action (send a link). Everything else is automated.
+
+Chickadee is a Telegram bot that turns URLs into structured notes in your
+[Obsidian](https://obsidian.md) or [Logseq](https://logseq.com) vault. Send
+it a link, get back a Markdown file shaped the way *that kind of content*
+should be shaped — with the right fields, the right sections, and links
+grounded in the notes you already have.
+
+## Why
+
+You share links in chat all day. Most of them you'll never revisit. The ones
+that matter, you want to actually *think about* — not just bookmark.
+
+Existing options each miss something:
+
+- **Bookmarking services** (Pocket, Raindrop) — no synthesis. Save → forget.
+- **Read-later apps** (Matter, Instapaper) — you read in *their* app, not
+  in your knowledge system. Highlights get trapped in someone else's silo.
+- **Readwise Reader / Matter AI summaries** — they summarise, but the
+  output lives in *their* system. To get it into your vault, you
+  copy-paste, reformat, lose links.
+- **Manual note-taking** — the best long-term outcome, but high friction.
+  Most links don't make it.
+
+Chickadee's two insights:
+
+1. **The note type matters.** A YouTube talk and an arXiv paper want
+   different structures. A Substack essay and a GitHub repo want different
+   questions answered. OneNote-style "everything is a page" loses that.
+2. **Link grounding matters.** A summary that links to "the transformer
+   paper" is useless. A summary that links to `[[Attention Is All You
+   Need]]` — the actual note in your vault — is gold.
+
+## What you get back
+
+A Markdown file with the right shape for the content. Six types —
+`TalkNote` for talks, `ArticleNote` for general articles, `PaperNote` for
+academic papers, `EssayNote` for opinion/long-form, `RepoNote` for GitHub
+repos, `FieldNote` for practitioner field reports.
+
+Example — an article ingested into Obsidian:
+
+```markdown
+---
+tags: [llm, evals, prompt-caching]
+builds_on: ["[[Prompt Caching in Production]]"]
+see_also: ["[[Anthropic Prompt Caching Notes]]"]
+contradicts: []
+source_url: https://simonwillison.net/2025/May/...
+source_type: article
+ingested_on: 2026-06-04
+upload_date: 2025-05-15
+---
+
+# Notes on Claude's New Prompt Caching Behaviour
+
+_Simon Willison_
+
+## Summary
+Anthropic's prompt caching now applies automatically without an explicit
+cache breakpoint, which changes the cost calculus for long-context
+applications in ways that aren't yet obvious from the docs.
+
+## Key points
+- Cache hits are now detected by prefix matching alone — no breakpoint required
+- 5-minute TTL by default; 1-hour TTL is opt-in and 2x the write cost
+- Multi-turn conversations are now cheaper than their single-shot equivalent
+
+## Evidence
+- Re-running the same 12k-token system prompt 50×: first call 18¢, subsequent 2¢
+- GitHub issue #4521 confirms the breakpoint-free behaviour was undocumented at release
+
+## Open questions
+- What's the failure mode when the cache key collides on a near-prefix?
+- Does this compose with tool-use result caching?
+
+## Reflection
+**My take:** Real lever for agent cost, not just a marketing update.
+**So what:** Re-running a 12k-token prompt on every agent step was
+prohibitive. Now it's table-stakes.
+**Now what:** Re-benchmark my agent harness with caching on; check whether
+the tool-use result cache can be replaced with this.
+```
+
+A talk looks different — speaker, ordered arguments, key quotes:
+
+```markdown
+---
+tags: [interpretability, sparse-autoencoders, anthropic]
+builds_on: ["[[Towards Monosemanticity]]"]
+see_also: ["[[Scaling Monosemanticity]]"]
+contradicts: []
+source_url: https://www.youtube.com/watch?v=...
+source_type: talk
+ingested_on: 2026-06-04
+upload_date: 2025-04-22
+---
+
+# Scaling Sparse Autoencoders: What Works at GPT-4 Scale
+
+_Tristan Hume (Anthropic)_
+
+## Summary
+Sparse autoencoders trained on Claude 3's residual stream recover
+interpretable features, but the engineering required at frontier-model
+scale is non-trivial and not a straightforward extrapolation from toy
+models.
+
+## Arguments
+1. At 1B parameters, SAEs recover ~80% of monosemantic features the team
+   identified by hand
+2. Scaling to 7B introduces training instabilities that don't appear in
+   smaller runs
+3. The dead-latent problem (≤5% of features activate in any given context)
+   worsens with scale
+4. Resampling dead latants during training recovers coverage but introduces
+   its own artefacts
+
+## Key quotes
+> "The features you can name are not a representative sample of the
+> features that exist."
+
+## Open questions
+- Is there a fundamental ceiling on monosemantic feature recovery, or is
+  it an optimisation problem?
+
+## Reflection
+**My take:** Strongest evidence yet that SAE interpretability is real work,
+not a toy.
+**Now what:** Read the related paper; revisit my own activation-patching
+experiments.
+```
+
+The full set of type-specific fields and sections is documented in
+[AGENTS.md](AGENTS.md#models-modelspy).
+
+## How it works
+
+Six steps. Routing is two-tier — domain alone decides high-confidence
+cases (YouTube → talk, arXiv → paper, GitHub → repo), and everything
+else is classified by a cheap LLM call *before* summarisation.
+
+```
+URL
+  │
+  ▼
+1. ROUTE
+   ├─ Tier 1: domain is unambiguous → ContentType decided
+   │           (youtube.com, arxiv.org, doi.org, github.com, vimeo.com)
+   └─ Tier 2: fetch first, then LLM-classify (6-way enum)
+  │
+  ▼
+2. FETCH
+   ├─ YouTube: yt-dlp → audio → OpenRouter multimodal transcription
+   └─ Web:    httpx GET → trafilatura extract
+  │
+  ▼
+3. CLASSIFY    (Tier 2 only — one cheap LLM call, enum-constrained)
+  │
+  ▼
+4. SUMMARISE   (typed Pydantic model, ContentType injected explicitly)
+   └─ Vault titles injected for link grounding — no hallucinated links
+  │
+  ▼
+5. RENDER      (AnyNote → Markdown)
+   ├─ Obsidian mode: YAML frontmatter + [[wikilinks]]
+   └─ Logseq mode:   property:: value lines + [[wikilinks]]
+  │
+  ▼
+6. WRITE
+   ├─ Obsidian → {vault}/Inbox/{date}_{slug}.md
+   └─ Logseq   → {vault}/pages/{slug}.md
+```
+
+**Why two separate LLM calls in Tier 2?** A single combined
+"classify-and-summarise" call causes the model to anchor on the wrong
+type early. Splitting them is cheap and dramatically improves schema
+fidelity.
+
+**Why inject the resolved `ContentType` into summarisation?** Because
+trusting the model to infer it from the URL or content is exactly how
+you end up with a Substack opinion piece summarised as a paper.
+
+**Why a separate classification enum call?** A 6-way enum-constrained
+classification is fast, cheap, and forces the model to commit to a type
+before committing to content. The downstream summariser then knows which
+schema to use.
 
 ## Architecture
 
-Single Docker container on a Raspberry Pi 4 (ARM64), polling Telegram, with a 3-tier LLM fallback chain:
+Single Docker container, polls Telegram, 3-tier LLM fallback chain:
 
 | Priority | Provider | Model | Cost |
 |---|---|---|---|
@@ -12,9 +198,12 @@ Single Docker container on a Raspberry Pi 4 (ARM64), polling Telegram, with a 3-
 | 2 | Vercel AI Gateway | `openai/gpt-oss-20b` | $5/mo free tier |
 | 3 | Free pool | Ollama, Groq, Cerebras, OpenRouter | Free |
 
-LM Studio is probed via HTTP before each pipeline run. If the laptop is off or unreachable, it's skipped. YouTube transcription always uses OpenRouter (cloud-only).
+LM Studio is probed via HTTP before each pipeline run. If the laptop is
+off or unreachable, it's skipped silently. YouTube transcription always
+uses OpenRouter (cloud-only — no local transcription fallback).
 
-Vault bind-mounted from host.
+The vault is bind-mounted from the host. All secrets come from the host
+shell environment; nothing is committed.
 
 ## Environment variables
 
@@ -23,7 +212,7 @@ All secrets are passed via shell environment — never commit `.env` to git.
 Set these in `~/.zshrc` (or `~/.bashrc`):
 
 ```bash
-# ── Required ────────────────────────────────────────────────────────────
+# ── Required ───────────────────────────────────────────────────────────────
 export CHICKADEE_TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
 export TELEGRAM_WEBHOOK_SECRET=""  # optional, for webhook mode
 
@@ -34,7 +223,7 @@ export BOT_ALLOWED_CHAT_IDS="*"  # or comma-separated chat IDs
 export LM_STUDIO_BASE_URL="http://192.168.1.52:1234/v1"
 export LM_STUDIO_MODEL="gemma-4-e4b-it"
 
-# ── Cloud fallback — at least one needed for reliability ────────────────
+# ── Cloud fallback — at least one needed for reliability ──────────────
 export VERCEL_AI_GATEWAY_API_KEY="your-vercel-key"
 export OPENROUTER_API_KEY="your-openrouter-key"
 
@@ -42,52 +231,56 @@ export OPENROUTER_API_KEY="your-openrouter-key"
 export GROQ_API_KEY="your-groq-key"
 export CEREBRAS_API_KEY="your-cerebras-key"
 
-# ── Vault ───────────────────────────────────────────────────────────────
+# ── Vault ──────────────────────────────────────────────────────────────
 export VAULT_BACKEND="obsidian"  # or "logseq"
 export VAULT_PATH="/app/vault"  # inside container; host path mounted in compose
 ```
 
 After editing, reload your shell:
+
 ```bash
 source ~/.zshrc   # or source ~/.bashrc
 ```
 
-Docker Compose reads these from the host shell and passes them into the container. No `.env` file needed.
+Docker Compose reads these from the host shell and passes them into the
+container. No `.env` file needed. See `.env.example` for the full list of
+available variables and their defaults.
 
-See `.env.example` for the full list of available variables and their defaults.
+## Deployment
 
-## Deployment (Raspberry Pi)
-
-### 1. Clone and configure
+Runs anywhere Docker runs. Tested on a Raspberry Pi 4 (ARM64).
 
 ```bash
+# 1. Clone
 git clone <repo-url> /home/dushyant/code/chickadee
 cd /home/dushyant/code/chickadee
-```
 
-Ensure the env vars above are set in your shell (see "Environment variables" section).
-
-### 2. Create vault directory
-
-```bash
+# 2. Create vault directory
 mkdir -p /home/dushyant/code/chickadee/vault/Inbox
-```
 
-### 3. Build and start
-
-```bash
+# 3. Build and start
 docker compose up -d
-```
 
-### 4. Check logs
-
-```bash
+# 4. Check logs
 docker compose logs -f
 ```
 
-### Rsync backup (optional)
+Optional rsync backup of the vault:
 
 ```bash
 # Cron job to sync vault to another machine
 0 */6 * * * rsync -avz /home/dushyant/code/chickadee/vault/ user@backup:/path/to/vault/
 ```
+
+## Documentation map
+
+- **[AGENTS.md](AGENTS.md)** — internal manual for the AI agent working in
+  this repo. Full model schemas, routing rules, prompt design, constraints.
+  Read this if you're going to change code.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — entry point for new contributors.
+  The rules that have caused real bugs when violated.
+- **[GLOSSARY.md](GLOSSARY.md)** — the project's domain vocabulary. Use
+  these terms consistently in code, comments, and commits.
+- **[docs/adr/](docs/adr/)** — architecture decision records. Start here
+  for the reasoning behind non-obvious choices.
+  - [0001 — Logseq vault backend](docs/adr/0001-logseq-vault-backend.md)

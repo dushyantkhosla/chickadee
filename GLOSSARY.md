@@ -1,8 +1,13 @@
-# Chickadee
+# Glossary
 
-Telegram bot that ingests URLs, fetches content, summarises with LLM, and writes structured notes to a vault (Obsidian or Logseq).
+The vocabulary Chickadee uses to talk about its own internals. Use these
+terms consistently in code, comments, prompts, and commit messages.
 
-## Language
+For *what Chickadee is* and *why it exists*, see the [README](README.md).
+For *how to contribute* to the codebase, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For *how the agent should behave* in detail, see [AGENTS.md](AGENTS.md).
+
+---
 
 **Vault**:
 The directory where Chickadee writes rendered notes. Can be an Obsidian vault or a Logseq graph depending on the `VAULT_BACKEND` setting.
@@ -10,7 +15,7 @@ _Avoid_: notebook, database, store
 
 **Note**:
 A single ingested URL rendered as a structured Markdown file with metadata (tags, source URL, links to other notes). One of six types: TalkNote, ArticleNote, PaperNote, EssayNote, RepoNote, FieldNote.
-_AVOID_: entry, post, document
+_Avoid_: entry, post, document
 
 **VaultMetadata**:
 The shared metadata model embedded in every note type. Contains tags, link fields (builds_on, see_also, contradicts), source URL, source type, and ingestion date. Rendered as YAML frontmatter in Obsidian mode or `property:: value` lines in Logseq mode.

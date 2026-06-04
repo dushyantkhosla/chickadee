@@ -315,4 +315,4 @@ for the cloud fallback to work.
 - No placeholder text in `Reflection` fields — `None` is correct when uncertain
 - `models.py` is append-only for new note types — never modify existing field names once the vault has notes using them (breaks frontmatter parsing)
 - Keep `UNAMBIGUOUS_DOMAINS` updated as new domains are added
-- Run `pytest` before committing — 104 tests must pass
+- Run `pytest` before committing — all tests must pass
