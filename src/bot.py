@@ -19,8 +19,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-INBOX_PREFIX = "Inbox/"
-
 
 def format_confirmation(note: AnyNote, filename: str) -> str:
     """Build a Telegram HTML message confirming a note was created."""
@@ -36,7 +34,7 @@ def format_confirmation(note: AnyNote, filename: str) -> str:
         f"✅ <b>{title}</b>",
         f"🏷️  {tags}",
         f"📝 {summary}",
-        f"📄 Saved to <code>{INBOX_PREFIX}{filename}</code>",
+        f"📄 Saved to <code>{filename}</code>",
     ]
     return "\n".join(lines)
 
@@ -52,7 +50,7 @@ def format_error(error_type: str, message: str, url: str) -> str:
 
 HELP_TEXT = (
     "🤖 <b>Chickadee</b>\n\n"
-    "Send me a URL and I'll summarise it into a structured Obsidian note.\n\n"
+    "Send me a URL and I'll summarise it into a structured note.\n\n"
     "Works with: articles, YouTube talks, papers, essays, GitHub repos, field reports."
 )
 
