@@ -28,8 +28,7 @@ services:
       # ── Transcription (YouTube audio -> text via OpenRouter) ─────────
       - TRANSCRIPTION_MODEL=${TRANSCRIPTION_MODEL:-xiaomi/mimo-v2.5}
       # ── Vault ────────────────────────────────────────────────────────
-      - OBSIDIAN_VAULT_PATH=${OBSIDIAN_VAULT_PATH:-/tmp/chickadee-vault}
-      - OBSIDIAN_API_KEY=${OBSIDIAN_API_KEY:-}
-      - OBSIDIAN_BASE_URL=${OBSIDIAN_BASE_URL:-}
+      - VAULT_BACKEND=${VAULT_BACKEND:-obsidian}
+      - VAULT_PATH=${VAULT_PATH:-/tmp/chickadee-vault}
     volumes:
       - /home/dushyant/code/chickadee/vault:/app/vault
