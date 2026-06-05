@@ -15,8 +15,7 @@ _cached_titles: list[str] = []
 
 def get_titles() -> list[str]:
     """Return sorted vault note titles, cached for 60s.
-    Obsidian: scans vault root, excludes Inbox/.
-    Logseq: scans pages/ directory.
+    Scans vault root, excluding Inbox/.
     """
     global _last_fetch, _cached_titles
     now = time.monotonic()
@@ -24,20 +23,13 @@ def get_titles() -> list[str]:
         return _cached_titles
 
     vault = Path(settings.VAULT_PATH)
-    backend = getattr(settings, "VAULT_FORMAT", "obsidian")
     titles: list[str] = []
 
-    if backend == "logseq":
-        pages_dir = vault / "pages"
-        if pages_dir.exists():
-            for path in pages_dir.glob("*.md"):
-                titles.append(path.stem)
-    else:
-        if vault.exists():
-            for path in vault.rglob("*.md"):
-                if path.parent.name == "Inbox":
-                    continue
-                titles.append(path.stem)
+    if vault.exists():
+        for path in vault.rglob("*.md"):
+            if path.parent.name == "Inbox":
+                continue
+            titles.append(path.stem)
 
     _cached_titles = sorted(titles)
     _last_fetch = now

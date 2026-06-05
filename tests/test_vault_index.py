@@ -11,8 +11,7 @@ def test_get_titles_collects_md_files():
         (Path(tmp) / "Note Two.md").write_text("y")
         (Path(tmp) / "Inbox").mkdir()
         (Path(tmp) / "Inbox" / "Draft.md").write_text("z")
-        with patch("src.vault_index.settings.VAULT_FORMAT", "obsidian"), \
-             patch("src.vault_index.settings.VAULT_PATH", tmp):
+        with patch("src.vault_index.settings.VAULT_PATH", tmp):
             clear_cache()
             titles = get_titles()
             assert "Note One" in titles
@@ -23,25 +22,10 @@ def test_get_titles_collects_md_files():
 def test_get_titles_uses_cache():
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "A.md").write_text("x")
-        with patch("src.vault_index.settings.VAULT_FORMAT", "obsidian"), \
-             patch("src.vault_index.settings.VAULT_PATH", tmp):
+        with patch("src.vault_index.settings.VAULT_PATH", tmp):
             clear_cache()
             first = get_titles()
             (Path(tmp) / "A.md").unlink()
             second = get_titles()
             assert first == second
             assert "A" in second
-
-
-def test_logseq_get_titles_scans_pages():
-    with tempfile.TemporaryDirectory() as tmp:
-        pages = Path(tmp) / "pages"
-        pages.mkdir()
-        (pages / "Note One.md").write_text("x")
-        (pages / "Note Two.md").write_text("y")
-        with patch("src.vault_index.settings.VAULT_FORMAT", "logseq"), \
-             patch("src.vault_index.settings.VAULT_PATH", tmp):
-            clear_cache()
-            titles = get_titles()
-            assert "Note One" in titles
-            assert "Note Two" in titles

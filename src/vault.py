@@ -1,4 +1,4 @@
-"""Write rendered notes to the vault — Obsidian (Inbox/) or Logseq (pages/)."""
+"""Write rendered notes to the vault (Obsidian: Inbox/)."""
 
 import logging
 from datetime import date
@@ -11,21 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 def make_filename(slug: str) -> str:
-    """Generate filename for the note. Obsidian: {date}_{slug}.md, Logseq: {slug}.md."""
-    backend = getattr(settings, "VAULT_FORMAT", "obsidian")
-    if backend == "logseq":
-        return f"{slug}.md"
+    """Generate filename for the note: {date}_{slug}.md."""
     return f"{date.today().isoformat()}_{slug}.md"
 
 
 def write(filename: str, content: str) -> Path:
-    """Write *content* to the vault. Obsidian: {vault}/Inbox/, Logseq: {vault}/pages/."""
-    backend = getattr(settings, "VAULT_FORMAT", "obsidian")
+    """Write *content* to {vault}/Inbox/."""
     vault_root = Path(settings.VAULT_PATH)
-    if backend == "logseq":
-        target_dir = vault_root / "pages"
-    else:
-        target_dir = vault_root / "Inbox"
+    target_dir = vault_root / "Inbox"
     path = target_dir / filename
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
