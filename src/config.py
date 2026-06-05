@@ -21,22 +21,23 @@ class Settings(BaseSettings):
     LM_STUDIO_MODEL: str = "gemma-4-e4b-it"
     LM_STUDIO_API_KEY: str = ""
 
-    # ── Vercel AI Gateway (paid, reliable fallback) ──────────────────────
-    VERCEL_AI_GATEWAY_API_KEY: str = ""
-    VERCEL_PAID_MODEL: str = "openai/gpt-oss-20b"
-
     # ── Free pool providers ──────────────────────────────────────────────
+    # Model lists are the source of truth in docker-compose.yml. These
+    # defaults are used when running outside the container (local dev, probe).
     OLLAMA_API_KEY: str = ""
-    OLLAMA_MODELS: str = "gemma4:31b,gpt-oss:20b"
+    OLLAMA_MODELS: str = "gemma4:31b"
 
-    GROQ_API_KEY: str = ""
-    GROQ_MODELS: str = "openai/gpt-oss-120b"
+    MISTRAL_API_KEY: str = ""
+    MISTRAL_MODELS: str = "mistral-small-latest"
 
-    CEREBRAS_API_KEY: str = ""
-    CEREBRAS_MODELS: str = "gpt-oss-120b"
+    GOOGLE_API_KEY: str = ""
+    GOOGLE_MODELS: str = "gemini-2.5-flash"
 
     OPENROUTER_API_KEY: str = ""
-    OPENROUTER_FREE_MODELS: str = "google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free,openai/gpt-oss-20b:free,openai/gpt-oss-120b:free"
+    OPENROUTER_FREE_MODELS: str = "google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free"
+
+    # ── OpenRouter paid (final fallback) ────────────────────────────────
+    OPENROUTER_PAID_MODELS: str = "openai/gpt-5-nano,deepseek/deepseek-v3.2,openai/gpt-4o-mini"
 
     # ── Transcription (YouTube audio → text via OpenRouter) ─────────────
     TRANSCRIPTION_MODEL: str = "xiaomi/mimo-v2.5"

@@ -57,20 +57,13 @@ def build_models(config: ProviderConfig, shuffle: bool = True) -> list[OpenAICha
 # ── Provider registry ────────────────────────────────────────────────────────
 
 PROVIDERS: dict[str, ProviderConfig] = {
-    "vercel:paid": ProviderConfig(
-        name="vercel",
-        api_key_env="VERCEL_AI_GATEWAY_API_KEY",
-        provider_type="vercel",
-        models_env="VERCEL_PAID_MODEL",
-        models_default="openai/gpt-oss-20b",
-    ),
     "ollama": ProviderConfig(
         name="ollama",
         api_key_env="OLLAMA_API_KEY",
         provider_type="openai",
         base_url="https://ollama.com/v1",
         models_env="OLLAMA_MODELS",
-        models_default="gemma4:31b,gpt-oss:20b",
+        models_default="minimax-m2.5,gemma4:31b",
     ),
     "groq": ProviderConfig(
         name="groq",
@@ -78,15 +71,23 @@ PROVIDERS: dict[str, ProviderConfig] = {
         provider_type="openai",
         base_url="https://api.groq.com/openai/v1",
         models_env="GROQ_MODELS",
-        models_default="openai/gpt-oss-120b",
+        models_default="",
     ),
-    "cerebras": ProviderConfig(
-        name="cerebras",
-        api_key_env="CEREBRAS_API_KEY",
+    "mistral:free": ProviderConfig(
+        name="mistral",
+        api_key_env="MISTRAL_API_KEY",
         provider_type="openai",
-        base_url="https://api.cerebras.ai/v1",
-        models_env="CEREBRAS_MODELS",
-        models_default="gpt-oss-120b",
+        base_url="https://api.mistral.ai/v1",
+        models_env="MISTRAL_MODELS",
+        models_default="mistral-small-latest",
+    ),
+    "google:free": ProviderConfig(
+        name="google",
+        api_key_env="GOOGLE_API_KEY",
+        provider_type="openai",
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+        models_env="GOOGLE_MODELS",
+        models_default="gemini-2.5-flash",
     ),
     "openrouter:free": ProviderConfig(
         name="openrouter",
@@ -94,6 +95,14 @@ PROVIDERS: dict[str, ProviderConfig] = {
         provider_type="openai",
         base_url="https://openrouter.ai/api/v1",
         models_env="OPENROUTER_FREE_MODELS",
-        models_default="google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free,openai/gpt-oss-20b:free,openai/gpt-oss-120b:free",
+        models_default="google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free",
+    ),
+    "openrouter:paid": ProviderConfig(
+        name="openrouter",
+        api_key_env="OPENROUTER_API_KEY",
+        provider_type="openai",
+        base_url="https://openrouter.ai/api/v1",
+        models_env="OPENROUTER_PAID_MODELS",
+        models_default="openai/gpt-5-nano,deepseek/deepseek-v3.2,openai/gpt-4o-mini",
     ),
 }

@@ -107,12 +107,16 @@ and returns the first success. All exceptions are caught — it never raises.
 | Priority | Provider | Model | Cost |
 |---|---|---|---|
 | 1 | LM Studio (laptop) | `gemma-4-e4b-it` | Free |
-| 2 | Vercel AI Gateway | `openai/gpt-oss-20b` | $5/mo free tier |
-| 3 | Free pool | Ollama, Groq, Cerebras, OpenRouter (8 models) | Free |
+| 2 | Google direct | `gemini-2.5-flash` | Free tier |
+| 3 | Mistral direct | `mistral-small-latest` | Free tier |
+| 4 | Ollama | `gemma4:31b` | Free |
+| 5 | OpenRouter free | `google/gemma-4-26b-a4b-it:free`, `google/gemma-4-31b-it:free` | Free |
+| 6 | OpenRouter paid (final fallback) | `openai/gpt-5-nano`, `deepseek/deepseek-v3.2`, `openai/gpt-4o-mini` | Paid |
 
 LM Studio is probed via a fast HTTP check (3s timeout). If the laptop is off or
-unreachable, it's skipped silently. Vercel is the reliable paid tier. The free pool
-is the last resort.
+unreachable, it's skipped silently. Google + Mistral direct are the most reliable
+free cloud providers; Ollama is the local fallback. OpenRouter free is rate-limited
+on burst; OpenRouter paid is the last-resort when everything else fails.
 
 `call_with_fallback()` in `chain.py` handles the loop:
 ```
@@ -267,44 +271,41 @@ The bot polls Telegram and processes URLs sequentially per chat.
 
 ## Environment variables
 
-All secrets are passed via shell environment — never commit `.env` to git.
-Set these in `~/.zshrc` or `~/.bashrc`. Docker Compose reads them from the host shell.
+Two distinct sources:
+
+1. **API keys & secrets** — `~/.zshrc` (or `~/.bashrc`). The host shell
+   forwards these to the container via `docker-compose.yml`'s `${VAR}`
+   substitution. Never commit them to git.
+2. **Model lists** (`*_MODELS` vars) — hardcoded as literal strings in
+   `docker-compose.yml`. They are NOT in `~/.zshrc` and NOT in `.env`.
+   This makes the model's identity part of the deployment definition, not
+   part of the host environment.
+
+LM Studio's `LM_STUDIO_*` vars and the `VAULT_FORMAT`/`TRANSCRIPTION_MODEL`
+remain in shell env (they're laptop/host config, not per-deployment).
 
 ```
-# ── Required ──────────────────────────────────────────────────────────────
+# ── In ~/.zshrc (API keys + host config) ──────────────────────────────
 CHICKADEE_TELEGRAM_BOT_TOKEN=
-TELEGRAM_WEBHOOK_SECRET=              # optional, for webhook mode
 CHICKADEE_ALLOWED_CHAT_IDS=*         # comma-separated or * for open access
+TELEGRAM_WEBHOOK_SECRET=              # optional, for webhook mode
 
-# ── LM Studio (laptop, primary when available) ───────────────────────────
 LM_STUDIO_BASE_URL=http://192.168.1.52:1234/v1
 LM_STUDIO_MODEL=gemma-4-e4b-it
-LM_STUDIO_API_KEY=                  # optional
+LM_STUDIO_API_KEY=                    # optional
 
-# ── Vercel AI Gateway (paid, reliable fallback, $5/mo free tier) ─────────
-VERCEL_AI_GATEWAY_API_KEY=
-VERCEL_PAID_MODEL=openai/gpt-oss-20b
-
-# ── Free pool (fallback when Vercel credits exhausted) ───────────────────
+# Cloud provider API keys (required for the chain to work)
 OLLAMA_API_KEY=
-OLLAMA_MODELS=gemma4:31b,gpt-oss:20b
+MISTRAL_API_KEY=
+GOOGLE_API_KEY=
+OPENROUTER_API_KEY=                   # also used for YouTube transcription
 
-GROQ_API_KEY=
-GROQ_MODELS=openai/gpt-oss-120b
-
-CEREBRAS_API_KEY=
-CEREBRAS_MODELS=gpt-oss-120b
-
-OPENROUTER_API_KEY=                 # also used for YouTube transcription
-OPENROUTER_FREE_MODELS=google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free,openai/gpt-oss-20b:free,openai/gpt-oss-120b:free
-
-# ── Transcription (YouTube audio → text) ─────────────────────────────────
-TRANSCRIPTION_MODEL=xiaomi/mimo-v2.5
-
-# ── Vault — choose one mode ─────────────────────────────────────────────
-VAULT_FORMAT=obsidian              # or logseq
-# The vault itself is always ./vault inside the project (bind-mounted to
-# /app/vault in the container). No VAULT_PATH env var needed.
+# ── In docker-compose.yml (model lists — hardcoded) ────────────────────
+# OLLAMA_MODELS=gemma4:31b
+# MISTRAL_MODELS=mistral-small-latest
+# GOOGLE_MODELS=gemini-2.5-flash
+# OPENROUTER_FREE_MODELS=google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free
+# OPENROUTER_PAID_MODELS=openai/gpt-5-nano,deepseek/deepseek-v3.2,openai/gpt-4o-mini   # final fallback
 ```
 
 At least one of `VERCEL_AI_GATEWAY_API_KEY` or `OPENROUTER_API_KEY` is needed

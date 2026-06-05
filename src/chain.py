@@ -2,8 +2,8 @@
 
 Priority order:
 1. LM Studio (laptop, when reachable) — free
-2. Vercel AI Gateway (openai/gpt-oss-20b) — $5/mo free tier
-3. Free pool (Ollama, Groq, Cerebras, OpenRouter free) — free
+2. Free cloud pool: Google direct, Mistral direct, Ollama, OpenRouter free
+3. OpenRouter paid (deepseek/deepseek-chat) — final fallback when all free fails
 
 Usage:
     result = await call_with_fallback(
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-_CLOUD_PROVIDER_ORDER = ["vercel:paid", "ollama", "groq", "cerebras", "openrouter:free"]
+_CLOUD_PROVIDER_ORDER = ["google:free", "mistral:free", "ollama", "openrouter:free", "openrouter:paid"]
 
 
 def _lm_studio_reachable() -> bool:
