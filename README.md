@@ -272,6 +272,35 @@ Optional rsync backup of the vault:
 0 */6 * * * rsync -avz /home/dushyant/code/chickadee/vault/ user@backup:/path/to/vault/
 ```
 
+## YouTube bot detection
+
+By default, yt-dlp fetches YouTube anonymously, which works for most videos.
+YouTube occasionally returns HTTP 403 ("Sign in to confirm you're not a
+bot") on certain videos or from certain IP ranges. If you see that error,
+export a Netscape-format `cookies.txt` from a logged-in browser session
+and mount it into the container:
+
+1. Install a browser extension like
+   [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+   (Chrome) or its Firefox equivalent. Visit `youtube.com` while signed in
+   and export the cookies to a file.
+2. Save the file as `cookies.txt` in the project root (next to
+   `docker-compose.yml`). **Add it to `.gitignore`** — it contains your
+   session token.
+3. Mount it into the container by adding this to `docker-compose.yml`
+   under the `chickadee` service's `volumes:` list:
+
+   ```yaml
+   - ./cookies.txt:/app/cookies.txt:ro
+   ```
+
+4. In `src/transcriber.py`, add `"cookiefile": "/app/cookies.txt"` to the
+   `ydl_opts` dict in `download_audio()`.
+
+Never try to use `cookiesfrombrowser` from inside the container — there is
+no browser installed there, and even if there were, it would have no logged-in
+session.
+
 ## Documentation map
 
 - **[AGENTS.md](AGENTS.md)** — internal manual for the AI agent working in

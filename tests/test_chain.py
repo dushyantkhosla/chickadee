@@ -34,12 +34,11 @@ class TestResolveModels:
              patch("src.chain.build_models") as mock_build:
             mock_build.side_effect = lambda cfg, **kw: [f"model-from-{cfg.name}"]
             models = resolve_models()
-            # Vercel paid is queried first, then free pool providers
+            # Current chain: free pool (google, mistral, ollama, openrouter free) then openrouter paid
             called_names = [c.args[0].name for c in mock_build.call_args_list]
-            assert "vercel" in called_names
+            assert "google" in called_names
+            assert "mistral" in called_names
             assert "ollama" in called_names
-            assert "groq" in called_names
-            assert "cerebras" in called_names
             assert "openrouter" in called_names
 
 

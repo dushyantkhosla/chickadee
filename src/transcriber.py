@@ -43,7 +43,6 @@ def download_audio(url: str) -> tuple[Path, YouTubeMetadata]:
         "socket_timeout": 30,
         "noplaylist": True,
         "quiet": True,
-        "cookiesfrombrowser": ("brave",),
         "js_runtimes": {"node": {}},
         "remote_components": ["ejs:github"],
         "postprocessors": [

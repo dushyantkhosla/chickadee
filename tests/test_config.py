@@ -49,7 +49,8 @@ def test_config_vault_backend_invalid():
 
 def test_lm_studio_defaults():
     """When no .env is present, LM Studio settings have sensible defaults."""
-    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    with patch.dict(os.environ, {}, clear=True):
+        s = Settings(_env_file=None)  # type: ignore[call-arg]
     assert s.LM_STUDIO_BASE_URL == "http://localhost:1234/v1"
     assert s.LM_STUDIO_MODEL == "gemma-4-e4b-it"
 
@@ -60,10 +61,14 @@ def test_lm_studio_from_env():
         f.write("LM_STUDIO_BASE_URL=http://192.168.1.50:1234/v1\n")
         f.write("LM_STUDIO_MODEL=qwen2.5-7b\n")
         f.flush()
-        s = Settings(_env_file=f.name)  # type: ignore[call-arg]
+        path = f.name
+    try:
+        with patch.dict(os.environ, {}, clear=True):
+            s = Settings(_env_file=path)  # type: ignore[call-arg]
         assert s.LM_STUDIO_BASE_URL == "http://192.168.1.50:1234/v1"
         assert s.LM_STUDIO_MODEL == "qwen2.5-7b"
-    Path(f.name).unlink()
+    finally:
+        Path(path).unlink()
 
 
 def test_default_lm_studio_model():
@@ -72,10 +77,11 @@ def test_default_lm_studio_model():
         assert s.LM_STUDIO_MODEL == "gemma-4-e4b-it"
 
 
-def test_vercel_model_default():
+def test_paid_fallback_default():
+    """Final-fallback model list is set to a non-empty default."""
     with patch.dict(os.environ, {}, clear=True):
         s = Settings(_env_file=None)
-        assert s.VERCEL_PAID_MODEL == "openai/gpt-oss-20b"
+    assert "deepseek/deepseek-v3.2" in s.OPENROUTER_PAID_MODELS
 
 
 def test_no_anthropic_key():
@@ -88,5 +94,6 @@ def test_free_pool_defaults():
     with patch.dict(os.environ, {}, clear=True):
         s = Settings(_env_file=None)
         assert "gemma4:31b" in s.OLLAMA_MODELS
-        assert "gpt-oss:20b" in s.OLLAMA_MODELS
-        assert "openai/gpt-oss-120b" in s.GROQ_MODELS
+        assert "mistral-small-latest" in s.MISTRAL_MODELS
+        assert "gemini-2.5-flash" in s.GOOGLE_MODELS
+        assert "google/gemma-4-26b-a4b-it:free" in s.OPENROUTER_FREE_MODELS

@@ -2,6 +2,7 @@ services:
     chickadee:
         build: .
         restart: unless-stopped
+        container_name: chickadee-bot
         environment:
             # ── Required ──────────────────────────────────────────────────────
             - CHICKADEE_TELEGRAM_BOT_TOKEN=${CHICKADEE_TELEGRAM_BOT_TOKEN}
@@ -61,8 +62,8 @@ services:
             - TZ=Etc/UTC
         volumes:
             - ./vault:/config/Obsidian
-        ports:
-            - "3001:3001"
+        # ports:
+        #     - "3001:3001"
         shm_size: "1gb"
         networks:
             - caddy_net
