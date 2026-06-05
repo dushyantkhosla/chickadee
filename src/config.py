@@ -1,7 +1,5 @@
 """Application settings loaded from environment variables."""
 
-from typing import Literal
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,7 +44,6 @@ class Settings(BaseSettings):
     # VAULT_PATH is the in-container path the renderer writes to. The compose
     # file bind-mounts ./vault to /app/vault, so leave this alone in Docker.
     # Override only for local dev (e.g. VAULT_PATH=/home/you/some/folder).
-    VAULT_FORMAT: Literal["obsidian", "logseq"] = "obsidian"
     VAULT_PATH: str = "/app/vault"
 
 

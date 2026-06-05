@@ -1,6 +1,5 @@
-"""Render AnyNote to Markdown — Obsidian (YAML frontmatter) or Logseq (properties)."""
+"""Render AnyNote to Markdown with Obsidian YAML frontmatter."""
 
-from src.config import settings
 from src.models import (
     AnyNote,
     ArticleNote,
@@ -13,11 +12,7 @@ from src.models import (
 
 
 def render(note: AnyNote) -> str:
-    backend = getattr(settings, "VAULT_FORMAT", "obsidian")
-    if backend == "logseq":
-        header = _render_properties(note.meta)
-    else:
-        header = f"---\n{_render_frontmatter(note.meta)}---"
+    header = f"---\n{_render_frontmatter(note.meta)}---"
     body = _render_body(note)
     return f"{header}\n\n{body}"
 
@@ -36,28 +31,6 @@ def _render_frontmatter(meta) -> str:
     if meta.upload_date is not None:
         data["upload_date"] = meta.upload_date.isoformat()
     return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
-
-
-def _render_properties(meta) -> str:
-    """Render VaultMetadata as Logseq property lines."""
-    lines = []
-    if meta.tags:
-        lines.append(f"tags:: {', '.join(meta.tags)}")
-    if meta.builds_on:
-        links = ", ".join(f"[[{t}]]" for t in meta.builds_on)
-        lines.append(f"builds-on:: {links}")
-    if meta.see_also:
-        links = ", ".join(f"[[{t}]]" for t in meta.see_also)
-        lines.append(f"see-also:: {links}")
-    if meta.contradicts:
-        links = ", ".join(f"[[{t}]]" for t in meta.contradicts)
-        lines.append(f"contradicts:: {links}")
-    lines.append(f"source-url:: {meta.source_url}")
-    lines.append(f"source-type:: {meta.source_type.value}")
-    lines.append(f"ingested-on:: {meta.ingested_on.isoformat()}")
-    if meta.upload_date is not None:
-        lines.append(f"upload-date:: {meta.upload_date.isoformat()}")
-    return "\n".join(lines)
 
 
 def _render_body(note: AnyNote) -> str:
