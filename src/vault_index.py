@@ -24,7 +24,7 @@ def get_titles() -> list[str]:
         return _cached_titles
 
     vault = Path(settings.VAULT_PATH)
-    backend = getattr(settings, "VAULT_BACKEND", "obsidian")
+    backend = getattr(settings, "VAULT_FORMAT", "obsidian")
     titles: list[str] = []
 
     if backend == "logseq":

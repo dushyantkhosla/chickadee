@@ -9,7 +9,7 @@ def test_config_has_bot_fields():
     """Config loads telegram-related env vars."""
     # These should exist without crashing
     assert hasattr(settings, "CHICKADEE_TELEGRAM_BOT_TOKEN")
-    assert hasattr(settings, "BOT_ALLOWED_CHAT_IDS")
+    assert hasattr(settings, "CHICKADEE_ALLOWED_CHAT_IDS")
 
 
 def test_format_confirmation_article():

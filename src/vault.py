@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def make_filename(slug: str) -> str:
     """Generate filename for the note. Obsidian: {date}_{slug}.md, Logseq: {slug}.md."""
-    backend = getattr(settings, "VAULT_BACKEND", "obsidian")
+    backend = getattr(settings, "VAULT_FORMAT", "obsidian")
     if backend == "logseq":
         return f"{slug}.md"
     return f"{date.today().isoformat()}_{slug}.md"
@@ -20,7 +20,7 @@ def make_filename(slug: str) -> str:
 
 def write(filename: str, content: str) -> Path:
     """Write *content* to the vault. Obsidian: {vault}/Inbox/, Logseq: {vault}/pages/."""
-    backend = getattr(settings, "VAULT_BACKEND", "obsidian")
+    backend = getattr(settings, "VAULT_FORMAT", "obsidian")
     vault_root = Path(settings.VAULT_PATH)
     if backend == "logseq":
         target_dir = vault_root / "pages"

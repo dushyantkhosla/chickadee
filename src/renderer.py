@@ -13,7 +13,7 @@ from src.models import (
 
 
 def render(note: AnyNote) -> str:
-    backend = getattr(settings, "VAULT_BACKEND", "obsidian")
+    backend = getattr(settings, "VAULT_FORMAT", "obsidian")
     if backend == "logseq":
         header = _render_properties(note.meta)
     else:

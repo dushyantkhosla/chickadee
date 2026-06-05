@@ -10,7 +10,7 @@ For *how the agent should behave* in detail, see [AGENTS.md](AGENTS.md).
 ---
 
 **Vault**:
-The directory where Chickadee writes rendered notes. Can be an Obsidian vault or a Logseq graph depending on the `VAULT_BACKEND` setting.
+The directory where Chickadee writes rendered notes. Can be an Obsidian vault or a Logseq graph depending on the `VAULT_FORMAT` setting.
 _Avoid_: notebook, database, store
 
 **Note**:
@@ -22,7 +22,7 @@ The shared metadata model embedded in every note type. Contains tags, link field
 _Avoid_: ObsidianMetadata, Frontmatter, Meta
 
 **Backend**:
-The vault format variant selected via `VAULT_BACKEND` env var. Either `obsidian` or `logseq`. Determines metadata format, file naming, and directory structure.
+The vault format variant selected via `VAULT_FORMAT` env var. Either `obsidian` or `logseq`. Determines metadata format, file naming, and directory structure.
 _Avoid_: mode, format, type
 
 **Link grounding**:

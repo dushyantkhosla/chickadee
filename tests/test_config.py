@@ -32,17 +32,17 @@ def test_config_loads_from_dotenv():
 def test_config_vault_backend_default():
     with patch.dict(os.environ, {}, clear=True):
         s = Settings(_env_file=None)
-        assert s.VAULT_BACKEND == "obsidian"
+        assert s.VAULT_FORMAT == "obsidian"
 
 
 def test_config_vault_backend_logseq():
-    with patch.dict(os.environ, {"VAULT_BACKEND": "logseq"}, clear=False):
+    with patch.dict(os.environ, {"VAULT_FORMAT": "logseq"}, clear=False):
         s = Settings(_env_file=None)
-        assert s.VAULT_BACKEND == "logseq"
+        assert s.VAULT_FORMAT == "logseq"
 
 
 def test_config_vault_backend_invalid():
-    with patch.dict(os.environ, {"VAULT_BACKEND": "notavalid"}, clear=False):
+    with patch.dict(os.environ, {"VAULT_FORMAT": "notavalid"}, clear=False):
         with pytest.raises(Exception):  # ValidationError
             Settings(_env_file=None)
 

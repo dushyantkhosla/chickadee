@@ -217,7 +217,7 @@ export CHICKADEE_TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
 export TELEGRAM_WEBHOOK_SECRET=""  # optional, for webhook mode
 
 # ── Telegram access control (optional, defaults to * = open access) ────
-export BOT_ALLOWED_CHAT_IDS="*"  # or comma-separated chat IDs
+export CHICKADEE_ALLOWED_CHAT_IDS="*"  # or comma-separated chat IDs
 
 # ── LM Studio — laptop, primary when available (optional) ──────────────
 export LM_STUDIO_BASE_URL="http://192.168.1.52:1234/v1"
@@ -232,8 +232,8 @@ export GROQ_API_KEY="your-groq-key"
 export CEREBRAS_API_KEY="your-cerebras-key"
 
 # ── Vault ──────────────────────────────────────────────────────────────
-export VAULT_BACKEND="obsidian"  # or "logseq"
-export VAULT_PATH="/app/vault"  # inside container; host path mounted in compose
+export VAULT_FORMAT="obsidian"  # or "logseq" — controls the renderer format
+# The vault itself is always ./vault inside the project. No path env var needed.
 ```
 
 After editing, reload your shell:

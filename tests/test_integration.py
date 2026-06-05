@@ -32,9 +32,9 @@ def _article_fixture():
 @pytest.mark.asyncio
 async def test_pipeline_full_run_writes_file():
     with tempfile.TemporaryDirectory() as tmp:
-        with patch("src.vault.settings.VAULT_BACKEND", "obsidian"), \
+        with patch("src.vault.settings.VAULT_FORMAT", "obsidian"), \
              patch("src.vault.settings.VAULT_PATH", tmp), \
-             patch("src.vault_index.settings.VAULT_BACKEND", "obsidian"), \
+             patch("src.vault_index.settings.VAULT_FORMAT", "obsidian"), \
              patch("src.vault_index.settings.VAULT_PATH", tmp):
             with patch("src.main.fetch", new_callable=AsyncMock) as mock_fetch, \
                  patch("src.main.classify", new_callable=AsyncMock) as mock_classify, \
@@ -58,9 +58,9 @@ async def test_pipeline_full_run_writes_file():
 @pytest.mark.asyncio
 async def test_pipeline_dry_run_does_not_write():
     with tempfile.TemporaryDirectory() as tmp:
-        with patch("src.vault.settings.VAULT_BACKEND", "obsidian"), \
+        with patch("src.vault.settings.VAULT_FORMAT", "obsidian"), \
              patch("src.vault.settings.VAULT_PATH", tmp), \
-             patch("src.vault_index.settings.VAULT_BACKEND", "obsidian"), \
+             patch("src.vault_index.settings.VAULT_FORMAT", "obsidian"), \
              patch("src.vault_index.settings.VAULT_PATH", tmp):
             with patch("src.main.fetch", new_callable=AsyncMock) as mock_fetch, \
                  patch("src.main.classify", new_callable=AsyncMock) as mock_classify, \
@@ -81,9 +81,9 @@ async def test_pipeline_dry_run_does_not_write():
 @pytest.mark.asyncio
 async def test_pipeline_dry_run_logseq_does_not_write():
     with tempfile.TemporaryDirectory() as tmp:
-        with patch("src.vault.settings.VAULT_BACKEND", "logseq"), \
+        with patch("src.vault.settings.VAULT_FORMAT", "logseq"), \
              patch("src.vault.settings.VAULT_PATH", tmp), \
-             patch("src.vault_index.settings.VAULT_BACKEND", "logseq"), \
+             patch("src.vault_index.settings.VAULT_FORMAT", "logseq"), \
              patch("src.vault_index.settings.VAULT_PATH", tmp):
             with patch("src.main.fetch", new_callable=AsyncMock) as mock_fetch, \
                  patch("src.main.classify", new_callable=AsyncMock) as mock_classify, \

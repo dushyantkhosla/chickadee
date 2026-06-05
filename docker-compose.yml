@@ -6,7 +6,7 @@ services:
       # ── Required ──────────────────────────────────────────────────────
       - CHICKADEE_TELEGRAM_BOT_TOKEN=${CHICKADEE_TELEGRAM_BOT_TOKEN}
       # ── Telegram access control (* = open, or comma-separated chat IDs)
-      - BOT_ALLOWED_CHAT_IDS=${BOT_ALLOWED_CHAT_IDS:-*}
+      - CHICKADEE_ALLOWED_CHAT_IDS=${CHICKADEE_ALLOWED_CHAT_IDS:-*}
       # ── Telegram webhook (optional)
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
       # ── LM Studio (laptop, primary when available) ───────────────────
@@ -27,31 +27,36 @@ services:
       - OPENROUTER_FREE_MODELS=${OPENROUTER_FREE_MODELS:-google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free,openai/gpt-oss-20b:free,openai/gpt-oss-120b:free}
       # ── Transcription (YouTube audio -> text via OpenRouter) ─────────
       - TRANSCRIPTION_MODEL=${TRANSCRIPTION_MODEL:-xiaomi/mimo-v2.5}
-      # ── Vault ────────────────────────────────────────────────────────
-      - VAULT_BACKEND=${VAULT_BACKEND:-obsidian}
-      - VAULT_PATH=${VAULT_PATH:-/tmp/chickadee-vault}
+      # ── Vault backend (renderer format) ──────────────────────────────
+      - VAULT_FORMAT=${VAULT_FORMAT}
     volumes:
-      - /home/dushyant/code/chickadee/vault:/app/vault
+      - ./vault:/app/vault
 
+  # ── Frontend (uncomment ONE) ─────────────────────────────────────────
+  # Logseq webapp, served on http://localhost:3001
+  # Reads pages from ./vault/pages/  (renderer writes there when VAULT_FORMAT=logseq)
   logseq:
     image: ghcr.io/logseq/logseq-webapp:latest
     restart: unless-stopped
+    profiles: ["frontend-logseq"]
     ports:
-      - "127.0.0.1:3001:80"
+      - "3001:80"
     volumes:
-      - ${VAULT_PATH:-/tmp/chickadee-vault}:/graphs/chickadee
+      - ./vault:/graphs/chickadee
 
+  # Obsidian webapp, served on http://localhost:3001
+  # Reads notes from ./vault/  (renderer writes to ./vault/Inbox/ when VAULT_FORMAT=obsidian)
   obsidian:
     image: lscr.io/linuxserver/obsidian:latest
     container_name: chickadee-obsidian
     restart: unless-stopped
+    profiles: ["frontend-obsidian"]
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
     volumes:
-      - ${VAULT_PATH:-/tmp/chickadee-vault}:/config/Obsidian
-      - ./obsidian-config:/config
+      - ./vault:/config/Obsidian
     ports:
       - "3001:3001"
     shm_size: "1gb"

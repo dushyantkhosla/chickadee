@@ -38,7 +38,7 @@ def test_logseq_properties_format():
         reflection=Reflection(),
     )
     with patch("src.renderer.settings") as mock_settings:
-        mock_settings.VAULT_BACKEND = "logseq"
+        mock_settings.VAULT_FORMAT = "logseq"
         md = render(note)
     assert md.startswith("tags:: machine-learning")
     assert "builds-on:: [[Prior Work]]" in md
@@ -61,7 +61,7 @@ def test_logseq_omits_empty_properties():
         reflection=Reflection(),
     )
     with patch("src.renderer.settings") as mock_settings:
-        mock_settings.VAULT_BACKEND = "logseq"
+        mock_settings.VAULT_FORMAT = "logseq"
         md = render(note)
     assert "builds-on::" not in md
     assert "see-also::" not in md
@@ -77,7 +77,7 @@ def test_logseq_upload_date_property():
         evidence=[],
     )
     with patch("src.renderer.settings") as mock_settings:
-        mock_settings.VAULT_BACKEND = "logseq"
+        mock_settings.VAULT_FORMAT = "logseq"
         md = render(note)
     assert "upload-date:: 2026-03-15" in md
 
@@ -92,7 +92,7 @@ def test_logseq_body_unchanged():
         key_quotes=["Quote 1"],
     )
     with patch("src.renderer.settings") as mock_settings:
-        mock_settings.VAULT_BACKEND = "logseq"
+        mock_settings.VAULT_FORMAT = "logseq"
         md = render(note)
     assert "# A Talk" in md
     assert "## Summary" in md
@@ -109,7 +109,7 @@ def test_logseq_contradicts_property():
         evidence=[],
     )
     with patch("src.renderer.settings") as mock_settings:
-        mock_settings.VAULT_BACKEND = "logseq"
+        mock_settings.VAULT_FORMAT = "logseq"
         md = render(note)
     assert "contradicts:: [[Flawed Study]]" in md
 
@@ -123,7 +123,7 @@ def test_logseq_multiple_tags():
         evidence=[],
     )
     with patch("src.renderer.settings") as mock_settings:
-        mock_settings.VAULT_BACKEND = "logseq"
+        mock_settings.VAULT_FORMAT = "logseq"
         md = render(note)
     assert "tags:: ml, python, research" in md
 
@@ -137,7 +137,7 @@ def test_logseq_multiple_builds_on():
         evidence=[],
     )
     with patch("src.renderer.settings") as mock_settings:
-        mock_settings.VAULT_BACKEND = "logseq"
+        mock_settings.VAULT_FORMAT = "logseq"
         md = render(note)
     assert "builds-on:: [[Note A]], [[Note B]]" in md
 
@@ -151,6 +151,6 @@ def test_render_obsidian_backend_produces_yaml_frontmatter():
         evidence=[],
     )
     with patch("src.renderer.settings") as mock_settings:
-        mock_settings.VAULT_BACKEND = "obsidian"
+        mock_settings.VAULT_FORMAT = "obsidian"
         md = render(note)
     assert md.startswith("---")

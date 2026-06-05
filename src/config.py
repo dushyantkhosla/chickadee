@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # ── Telegram ──────────────────────────────────────────────────────────
     CHICKADEE_TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_WEBHOOK_SECRET: str = ""
-    BOT_ALLOWED_CHAT_IDS: str = "*"
+    CHICKADEE_ALLOWED_CHAT_IDS: str = "*"
 
     # ── LM Studio (laptop, primary when available) ───────────────────────
     LM_STUDIO_BASE_URL: str = "http://localhost:1234/v1"
@@ -42,8 +42,11 @@ class Settings(BaseSettings):
     TRANSCRIPTION_MODEL: str = "xiaomi/mimo-v2.5"
 
     # ── Vault ────────────────────────────────────────────────────────────
-    VAULT_BACKEND: Literal["obsidian", "logseq"] = "obsidian"
-    VAULT_PATH: str = "/tmp/chickadee-vault"
+    # VAULT_PATH is the in-container path the renderer writes to. The compose
+    # file bind-mounts ./vault to /app/vault, so leave this alone in Docker.
+    # Override only for local dev (e.g. VAULT_PATH=/home/you/some/folder).
+    VAULT_FORMAT: Literal["obsidian", "logseq"] = "obsidian"
+    VAULT_PATH: str = "/app/vault"
 
 
 settings = Settings()

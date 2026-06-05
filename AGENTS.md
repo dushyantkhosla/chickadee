@@ -214,10 +214,12 @@ For `FieldNote`, add:
 
 ## Vault integration (vault.py)
 
-Filesystem write mode — set `VAULT_BACKEND` and `VAULT_PATH` in your shell rc file:
+Filesystem write mode — `VAULT_FORMAT` chooses the renderer format. The vault
+itself is always `./vault` inside the project (bind-mounted to `/app/vault` in
+the container; no path env var needed).
 
-- **Obsidian** (`VAULT_BACKEND=obsidian`): writes to `{vault_path}/Inbox/{date}_{slug}.md`
-- **Logseq** (`VAULT_BACKEND=logseq`): writes to `{vault_path}/pages/{slug}.md`
+- **Obsidian** (`VAULT_FORMAT=obsidian`): writes to `./vault/Inbox/{date}_{slug}.md`
+- **Logseq** (`VAULT_FORMAT=logseq`): writes to `./vault/pages/{slug}.md`
 
 Both backends produce the same body content — only the metadata format differs
 (YAML frontmatter for Obsidian, `property:: value` lines for Logseq).
@@ -272,7 +274,7 @@ Set these in `~/.zshrc` or `~/.bashrc`. Docker Compose reads them from the host 
 # ── Required ──────────────────────────────────────────────────────────────
 CHICKADEE_TELEGRAM_BOT_TOKEN=
 TELEGRAM_WEBHOOK_SECRET=              # optional, for webhook mode
-BOT_ALLOWED_CHAT_IDS=*              # comma-separated or * for open access
+CHICKADEE_ALLOWED_CHAT_IDS=*         # comma-separated or * for open access
 
 # ── LM Studio (laptop, primary when available) ───────────────────────────
 LM_STUDIO_BASE_URL=http://192.168.1.52:1234/v1
@@ -300,8 +302,9 @@ OPENROUTER_FREE_MODELS=google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free
 TRANSCRIPTION_MODEL=xiaomi/mimo-v2.5
 
 # ── Vault — choose one mode ─────────────────────────────────────────────
-VAULT_BACKEND=obsidian              # or logseq
-VAULT_PATH=/tmp/chickadee-vault
+VAULT_FORMAT=obsidian              # or logseq
+# The vault itself is always ./vault inside the project (bind-mounted to
+# /app/vault in the container). No VAULT_PATH env var needed.
 ```
 
 At least one of `VERCEL_AI_GATEWAY_API_KEY` or `OPENROUTER_API_KEY` is needed

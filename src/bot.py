@@ -215,7 +215,7 @@ if __name__ == "__main__":
     )
 
     token = settings.CHICKADEE_TELEGRAM_BOT_TOKEN
-    allowed = _parse_allowed(settings.BOT_ALLOWED_CHAT_IDS)
+    allowed = _parse_allowed(settings.CHICKADEE_ALLOWED_CHAT_IDS)
     bot = ChickadeeBot(token, allowed)
 
     async def run():

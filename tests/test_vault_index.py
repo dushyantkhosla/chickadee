@@ -11,7 +11,7 @@ def test_get_titles_collects_md_files():
         (Path(tmp) / "Note Two.md").write_text("y")
         (Path(tmp) / "Inbox").mkdir()
         (Path(tmp) / "Inbox" / "Draft.md").write_text("z")
-        with patch("src.vault_index.settings.VAULT_BACKEND", "obsidian"), \
+        with patch("src.vault_index.settings.VAULT_FORMAT", "obsidian"), \
              patch("src.vault_index.settings.VAULT_PATH", tmp):
             clear_cache()
             titles = get_titles()
@@ -23,7 +23,7 @@ def test_get_titles_collects_md_files():
 def test_get_titles_uses_cache():
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "A.md").write_text("x")
-        with patch("src.vault_index.settings.VAULT_BACKEND", "obsidian"), \
+        with patch("src.vault_index.settings.VAULT_FORMAT", "obsidian"), \
              patch("src.vault_index.settings.VAULT_PATH", tmp):
             clear_cache()
             first = get_titles()
@@ -39,7 +39,7 @@ def test_logseq_get_titles_scans_pages():
         pages.mkdir()
         (pages / "Note One.md").write_text("x")
         (pages / "Note Two.md").write_text("y")
-        with patch("src.vault_index.settings.VAULT_BACKEND", "logseq"), \
+        with patch("src.vault_index.settings.VAULT_FORMAT", "logseq"), \
              patch("src.vault_index.settings.VAULT_PATH", tmp):
             clear_cache()
             titles = get_titles()
