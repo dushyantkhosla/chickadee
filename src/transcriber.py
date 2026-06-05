@@ -35,6 +35,11 @@ def download_audio(url: str) -> tuple[Path, YouTubeMetadata]:
     tempdir = Path(tempfile.mkdtemp(prefix="yt_audio_"))
     outtmpl = str(tempdir / "download.%(ext)s")
 
+    # Cookie strategy: prefer file (works in Docker), fallback to browser (local dev)
+    cookie_file = Path("/app/cookies.txt")  # Docker path
+    if not cookie_file.exists():
+        cookie_file = Path(__file__).parent.parent / "cookies.txt"  # Local dev path
+
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": outtmpl,
@@ -43,6 +48,7 @@ def download_audio(url: str) -> tuple[Path, YouTubeMetadata]:
         "socket_timeout": 30,
         "noplaylist": True,
         "quiet": True,
+        **({"cookiefile": str(cookie_file)} if cookie_file.exists() else {"cookiesfrombrowser": ("brave",)}),
         "js_runtimes": {"node": {}},
         "remote_components": ["ejs:github"],
         "postprocessors": [

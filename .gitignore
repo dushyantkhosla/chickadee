@@ -12,3 +12,4 @@ vault/
 
 # Environment secrets
 .env
+cookies.txt
