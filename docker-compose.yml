@@ -26,7 +26,6 @@ services:
       - OPENROUTER_PAID_MODELS=openai/gpt-5-nano,deepseek/deepseek-v3.2,openai/gpt-4o-mini
       # ── Transcription (YouTube audio -> text via OpenRouter) ─────────
       - TRANSCRIPTION_MODEL=${TRANSCRIPTION_MODEL:-xiaomi/mimo-v2.5}
-      # ── Vault backend (renderer format) ──────────────────────────────
     volumes:
       - ./vault:/app/vault
       - ./cookies.txt:/app/cookies.txt:ro  # YouTube cookies (export from browser)
