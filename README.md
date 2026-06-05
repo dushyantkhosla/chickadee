@@ -153,7 +153,7 @@ URL
   │
   ▼
 2. FETCH
-   ├─ YouTube: yt-dlp → audio → OpenRouter multimodal transcription
+   ├─ YouTube: yt-dlp (with cookies.txt) → audio → OpenRouter multimodal transcription
    └─ Web:    httpx GET → trafilatura extract
   │
   ▼
@@ -272,34 +272,59 @@ Optional rsync backup of the vault:
 0 */6 * * * rsync -avz /home/dushyant/code/chickadee/vault/ user@backup:/path/to/vault/
 ```
 
-## YouTube bot detection
+## YouTube cookies
 
-By default, yt-dlp fetches YouTube anonymously, which works for most videos.
-YouTube occasionally returns HTTP 403 ("Sign in to confirm you're not a
-bot") on certain videos or from certain IP ranges. If you see that error,
-export a Netscape-format `cookies.txt` from a logged-in browser session
-and mount it into the container:
+YouTube bot detection can block requests or serve CAPTCHAs when fetching
+videos. To avoid this, yt-dlp uses a `cookies.txt` file with your browser's
+session cookies. The cookie file is already configured in the codebase —
+you just need to provide it.
 
-1. Install a browser extension like
-   [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
-   (Chrome) or its Firefox equivalent. Visit `youtube.com` while signed in
-   and export the cookies to a file.
-2. Save the file as `cookies.txt` in the project root (next to
-   `docker-compose.yml`). **Add it to `.gitignore`** — it contains your
-   session token.
-3. Mount it into the container by adding this to `docker-compose.yml`
-   under the `chickadee` service's `volumes:` list:
+### How it works
 
-   ```yaml
-   - ./cookies.txt:/app/cookies.txt:ro
-   ```
+`src/transcriber.py` checks for cookies in this order:
+1. `/app/cookies.txt` — Docker (bind-mounted from host)
+2. `./cookies.txt` — local dev (project root)
+3. Brave browser — local dev only (via `cookiesfrombrowser`)
 
-4. In `src/transcriber.py`, add `"cookiefile": "/app/cookies.txt"` to the
-   `ydl_opts` dict in `download_audio()`.
+The file is mounted as read-only in `docker-compose.yml`.
 
-Never try to use `cookiesfrombrowser` from inside the container — there is
-no browser installed there, and even if there were, it would have no logged-in
-session.
+### Generate cookies.txt
+
+1. Install the browser extension [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) (Chrome) or [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) (Firefox)
+2. Open Brave/Chrome/Firefox and go to [youtube.com](https://youtube.com)
+3. Make sure you're **logged in** to your Google account
+4. Click the extension icon → **Export** → save as `cookies.txt`
+5. Place the file in the project root:
+
+```bash
+# Local dev
+~/code/chickadee/cookies.txt
+
+# Server (copy via scp)
+scp cookies.txt user@server:~/chickadee/
+```
+
+6. Restart the container:
+
+```bash
+docker compose restart
+```
+
+### When cookies expire
+
+YouTube cookies typically last **3-6 months**. Signs of expiry:
+- yt-dlp returns HTTP 403 errors
+- Bot reports `yt-dlp failed: Sign in to confirm you're not a bot`
+- Downloaded audio is empty or corrupt
+
+To fix: re-export cookies using the same steps above and replace the file
+on the server.
+
+### Security
+
+`cookies.txt` contains your session token — **never commit it to git**.
+It's already in `.gitignore`. Anyone with this file can impersonate your
+Google account on YouTube.
 
 ## Documentation map
 

@@ -35,6 +35,7 @@ One human action (send link). Everything else is automated.
 │   └── exceptions.py         # FetchError, ParseError, VaultWriteError, LMStudioError
 ├── tests/
 ├── plans/
+├── cookies.txt            # YouTube cookies (exported from browser, not in git)
 └── pyproject.toml
 ```
 
@@ -135,6 +136,14 @@ For YouTube URLs, metadata (title, channel, categories, upload_date) comes from 
 
 YouTube transcription is always cloud-only (OpenRouter multimodal, `src/transcriber.py`).
 No local transcription fallback.
+
+**YouTube cookies** — yt-dlp checks for a cookie file to avoid bot detection:
+1. `/app/cookies.txt` (Docker path — mounted from host)
+2. `./cookies.txt` (local dev path — project root)
+3. Falls back to Brave browser via `cookiesfrombrowser` (local dev only)
+
+Cookies expire after ~3-6 months. When YouTube returns HTTP 403 errors,
+re-export cookies from a logged-in browser session (see README for instructions).
 
 ### Link grounding
 
@@ -264,7 +273,7 @@ docker compose logs -f    # check logs
 docker compose down       # stop
 ```
 
-The container restarts unless stopped. Vault is bind-mounted from the host.
+The container restarts unless stopped. Vault and cookies are bind-mounted from the host.
 The bot polls Telegram and processes URLs sequentially per chat.
 
 ---
