@@ -95,7 +95,7 @@ async def test_fetch_youtube_success():
 
 @pytest.mark.asyncio
 async def test_fetch_youtube_mobile_subdomain():
-    """Regression: m.youtube.com URLs must use the YouTube branch, not HTML extraction."""
+    """Subdomain coverage: m.youtube.com — must use the YouTube branch via registered-domain detection."""
     metadata = YouTubeMetadata(title="Mobile Talk", channel="Mobile Speaker")
     mock_transcribe = MagicMock(return_value=("Mobile transcript", metadata))
 
@@ -104,6 +104,46 @@ async def test_fetch_youtube_mobile_subdomain():
         assert text == "Mobile transcript"
         assert meta.title == "Mobile Talk"
         mock_transcribe.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fetch_youtube_music_subdomain():
+    """music.youtube.com (any *.youtube.com) must use the YouTube branch."""
+    metadata = YouTubeMetadata(title="Music Talk", channel="Music Channel")
+    mock_transcribe = MagicMock(return_value=("Music transcript", metadata))
+
+    with patch("src.transcriber.fetch_youtube_transcript", mock_transcribe):
+        text, meta = await fetch("https://music.youtube.com/watch?v=xyz")
+        assert text == "Music transcript"
+        assert meta.title == "Music Talk"
+        mock_transcribe.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fetch_youtube_nocookie_subdomain():
+    """youtube-nocookie.com (privacy-enhanced embeds) must use the YouTube branch."""
+    metadata = YouTubeMetadata(title="NoCookie Talk", channel="Channel")
+    mock_transcribe = MagicMock(return_value=("NoCookie transcript", metadata))
+
+    with patch("src.transcriber.fetch_youtube_transcript", mock_transcribe):
+        text, meta = await fetch("https://www.youtube-nocookie.com/embed/abc")
+        assert text == "NoCookie transcript"
+        mock_transcribe.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fetch_youtube_suffix_attack_rejected():
+    """A URL with 'youtube' as a substring but a different registered domain must NOT enter the YouTube branch.
+
+    Regression guard against any future regex-based approach that does substring matching.
+    """
+    with patch("src.transcriber.fetch_youtube_transcript") as mock_transcribe:
+        with patch("src.fetcher._fetch_html", new_callable=AsyncMock) as mock_html:
+            mock_html.return_value = "html from evil.com"
+            text, meta = await fetch("https://www.youtube.com.evil.com/")
+            mock_transcribe.assert_not_called()
+            assert meta is None
+            assert text == "html from evil.com"
 
 
 @pytest.mark.asyncio

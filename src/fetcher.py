@@ -13,18 +13,39 @@ from src.models import YouTubeMetadata
 logger = logging.getLogger(__name__)
 
 
+_YOUTUBE_REGISTERED_DOMAINS = frozenset({"youtube.com", "youtu.be", "youtube-nocookie.com"})
+
+
+def _is_youtube_host(host: str) -> bool:
+    """Return True if *host* belongs to a known YouTube registered domain.
+
+    Uses the last two labels (the registered domain) so that:
+    - All subdomains (m., www., music., accounts., studio., etc.) match
+    - Suffix attacks like 'youtube.com.evil.com' are rejected
+    - Unrelated domains containing 'youtube' as a substring (notyoutube.com) are rejected
+    """
+    parts = host.lower().split(".")
+    if len(parts) < 2:
+        return False
+    return ".".join(parts[-2:]) in _YOUTUBE_REGISTERED_DOMAINS
+
+
 def _extract_youtube_video_id(url: str) -> str | None:
     """Check if URL is a YouTube video. Used for routing, not fetching."""
     from urllib.parse import parse_qs, urlparse
     parsed = urlparse(url)
-    host = parsed.netloc.lower().lstrip("www.").lstrip("m.")
-    if host in ("youtube.com", "youtu.be"):
-        if host == "youtube.com":
-            query = parse_qs(parsed.query)
-            if "v" in query:
-                return query["v"][0]
-        else:
-            return parsed.path.lstrip("/").split("/")[0]
+    host = parsed.hostname or ""
+    if not _is_youtube_host(host):
+        return None
+    if host.endswith("youtu.be"):
+        segments = parsed.path.lstrip("/").split("/")
+        return segments[0] or None
+    path_segments = parsed.path.lstrip("/").split("/")
+    if len(path_segments) >= 2 and path_segments[0] == "embed":
+        return path_segments[1] or None
+    query = parse_qs(parsed.query)
+    if "v" in query and query["v"]:
+        return query["v"][0]
     return None
 
 
