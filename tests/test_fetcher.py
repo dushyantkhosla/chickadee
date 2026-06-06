@@ -94,6 +94,19 @@ async def test_fetch_youtube_success():
 
 
 @pytest.mark.asyncio
+async def test_fetch_youtube_mobile_subdomain():
+    """Regression: m.youtube.com URLs must use the YouTube branch, not HTML extraction."""
+    metadata = YouTubeMetadata(title="Mobile Talk", channel="Mobile Speaker")
+    mock_transcribe = MagicMock(return_value=("Mobile transcript", metadata))
+
+    with patch("src.transcriber.fetch_youtube_transcript", mock_transcribe):
+        text, meta = await fetch("https://m.youtube.com/watch?v=abc123")
+        assert text == "Mobile transcript"
+        assert meta.title == "Mobile Talk"
+        mock_transcribe.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_fetch_youtube_download_error():
     mock_transcribe = MagicMock(side_effect=FetchError("yt-dlp failed: geo-blocked"))
 

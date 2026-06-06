@@ -17,7 +17,7 @@ def _extract_youtube_video_id(url: str) -> str | None:
     """Check if URL is a YouTube video. Used for routing, not fetching."""
     from urllib.parse import parse_qs, urlparse
     parsed = urlparse(url)
-    host = parsed.netloc.lower().lstrip("www.")
+    host = parsed.netloc.lower().lstrip("www.").lstrip("m.")
     if host in ("youtube.com", "youtu.be"):
         if host == "youtube.com":
             query = parse_qs(parsed.query)
